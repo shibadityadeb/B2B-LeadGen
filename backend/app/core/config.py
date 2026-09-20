@@ -69,8 +69,34 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 120.0
     llm_max_evidence_items: int = 40
 
+    # --- phase 3: outreach ---
+    # Days after an outreach is marked sent at which each follow-up falls due.
+    follow_up_intervals: str = "3,7,14"
+    outreach_max_personalization_points: int = 2
+    #: Where Google redirects after consent. Must match the console exactly.
+    google_redirect_uri: str = "http://localhost:8000/api/gmail/callback"
+    #: Where the user is returned in the app once the callback completes.
+    frontend_url: str = "http://localhost:3000"
+    # Server-side only. These must never appear in NEXT_PUBLIC_* variables.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
     # --- optional local LLM ---
     ollama_url: str = "http://localhost:11434"
+
+    @property
+    def follow_up_interval_days(self) -> list[int]:
+        days: list[int] = []
+        for part in (self.follow_up_intervals or "").split(","):
+            part = part.strip()
+            if part.isdigit() and int(part) > 0:
+                days.append(int(part))
+        return days or [3, 7, 14]
+
+    @property
+    def gmail_configured(self) -> bool:
+        """True when OAuth credentials are present. Never exposes them."""
+        return bool(self.google_client_id and self.google_client_secret)
 
     @property
     def cors_origin_list(self) -> list[str]:

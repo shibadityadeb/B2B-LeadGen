@@ -19,6 +19,16 @@ import type {
   ResearchRunDetail,
   ResearchSource,
   Signal,
+  GmailConnection,
+  MessageLength,
+  OutcomeReason,
+  OutcomeStatus,
+  Outreach,
+  OutreachAnalytics,
+  OutreachCampaign,
+  OutreachDetail,
+  OutreachTone,
+  SenderProfile,
   SignalTypeOption,
   SystemStatus,
   UbmCapability,
@@ -200,6 +210,134 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+
+  // --- phase 3: outreach ---
+  createOutreach: (
+    opportunityId: number,
+    payload: {
+      decision_maker_id?: number | null;
+      campaign_id?: number | null;
+      tone?: OutreachTone;
+      message_length?: MessageLength;
+      objective?: string | null;
+    } = {},
+  ) =>
+    request<Outreach>(`/api/opportunities/${opportunityId}/outreach`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  listOutreach: (
+    params: {
+      page?: number;
+      page_size?: number;
+      status?: string;
+      company_id?: number;
+      campaign_id?: number;
+      opportunity_id?: number;
+      owner?: string;
+      search?: string;
+      follow_up_due?: boolean;
+      created_after?: string;
+    } = {},
+  ) =>
+    request<Paginated<Outreach>>(
+      `/api/outreach${query({ ...params, follow_up_due: params.follow_up_due ? "true" : undefined })}`,
+    ),
+  getOutreach: (id: number) => request<OutreachDetail>(`/api/outreach/${id}`),
+  updateOutreach: (
+    id: number,
+    payload: {
+      subject?: string;
+      body?: string;
+      to_email?: string;
+      to_name?: string;
+      cc?: string;
+      bcc?: string;
+    },
+  ) =>
+    request<Outreach>(`/api/outreach/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  regenerateOutreach: (
+    id: number,
+    payload: { tone?: OutreachTone; message_length?: MessageLength; objective?: string } = {},
+  ) =>
+    request<Outreach>(`/api/outreach/${id}/regenerate`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  resetOutreach: (id: number) =>
+    request<Outreach>(`/api/outreach/${id}/reset`, { method: "POST" }),
+  activateVersion: (id: number, versionId: number) =>
+    request<Outreach>(`/api/outreach/${id}/versions/activate`, {
+      method: "POST",
+      body: JSON.stringify({ version_id: versionId }),
+    }),
+  approveOutreach: (id: number) =>
+    request<Outreach>(`/api/outreach/${id}/approve`, { method: "POST" }),
+  rejectOutreach: (id: number, reason?: string) =>
+    request<Outreach>(`/api/outreach/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason ?? null }),
+    }),
+  cancelOutreach: (id: number) =>
+    request<Outreach>(`/api/outreach/${id}/cancel`, { method: "POST" }),
+  createGmailDraft: (id: number, forceNew = false) =>
+    request<Outreach>(`/api/outreach/${id}/gmail-draft`, {
+      method: "POST",
+      body: JSON.stringify({ force_new: forceNew }),
+    }),
+  markSent: (id: number) =>
+    request<Outreach>(`/api/outreach/${id}/mark-sent`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  createFollowUpDraft: (id: number) =>
+    request<Outreach>(`/api/outreach/${id}/follow-up-draft`, { method: "POST" }),
+  updateOutcome: (
+    id: number,
+    payload: { status: OutcomeStatus; reason?: OutcomeReason | null; notes?: string | null },
+  ) =>
+    request<Outreach>(`/api/outreach/${id}/outcome`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  // --- phase 3: sender, gmail, campaigns, analytics ---
+  getSenderProfile: () => request<SenderProfile>("/api/sender-profile"),
+  updateSenderProfile: (payload: Partial<SenderProfile>) =>
+    request<SenderProfile>("/api/sender-profile", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  gmailStatus: () => request<GmailConnection>("/api/gmail/status"),
+  gmailAuthorizeUrl: () =>
+    request<{ authorization_url: string }>("/api/gmail/authorize"),
+  gmailDisconnect: () =>
+    request<GmailConnection>("/api/gmail/disconnect", { method: "POST" }),
+
+  listCampaigns: () => request<OutreachCampaign[]>("/api/campaigns"),
+  createCampaign: (payload: {
+    name: string;
+    description?: string | null;
+    target_id?: number | null;
+    tone?: OutreachTone;
+    message_length?: MessageLength;
+    follow_up_intervals?: number[];
+  }) =>
+    request<OutreachCampaign>("/api/campaigns", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getCampaign: (id: number) => request<OutreachCampaign>(`/api/campaigns/${id}`),
+  prepareCampaignOutreach: (id: number, opportunityIds: number[]) =>
+    request<{ created: Outreach[]; skipped: { opportunity_id: number; reason: string }[] }>(
+      `/api/campaigns/${id}/prepare`,
+      { method: "POST", body: JSON.stringify({ opportunity_ids: opportunityIds }) },
+    ),
+
+  outreachAnalytics: () => request<OutreachAnalytics>("/api/outreach-analytics"),
 };
 
 /** SWR fetcher keyed by a tuple of [name, ...args]. */

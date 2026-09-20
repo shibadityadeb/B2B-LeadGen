@@ -30,6 +30,17 @@ from app.models.intelligence import (
     SignalEvidence,
     UbmCapability,
 )
+from app.models.outreach import (
+    AuditEvent,
+    GmailConnection,
+    Outreach,
+    OutreachCampaign,
+    OutreachClaim,
+    OutreachClaimEvidence,
+    OutreachOutcome,
+    OutreachVersion,
+    SenderProfile,
+)
 from app.models.research import (
     Contradiction,
     Evidence,
@@ -79,4 +90,14 @@ __all__ = [
     "OpportunityStatus",
     "ContradictionStatus",
     "VerificationStatus",
+    # --- phase 3 ---
+    "SenderProfile",
+    "OutreachCampaign",
+    "Outreach",
+    "OutreachVersion",
+    "OutreachClaim",
+    "OutreachClaimEvidence",
+    "OutreachOutcome",
+    "GmailConnection",
+    "AuditEvent",
 ]

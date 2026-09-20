@@ -1,4 +1,4 @@
-# UBM Growth Opportunity Engine — Phases 1 & 2
+# UBM Growth Opportunity Engine — Phases 1–3
 
 A B2B growth opportunity engine 
 
@@ -8,6 +8,12 @@ provenance → run an initial website crawl.
 **Phase 2:** research a company → collect public sources → extract evidence → derive business
 signals → find publicly listed decision makers → map UBM capabilities → produce an
 evidence-backed research brief.
+
+**Phase 3:** turn an opportunity into a personalized message → human review → a **draft** in
+your own Gmail → you send it → follow-up tracking → outcome → analytics.
+
+> **The system never sends email.** The delivery interface has no `send` method, so the
+> capability does not exist in the code. It creates drafts; a person sends them.
 
 Every claim in the system points back to a source URL and a verbatim excerpt. Opportunities are
 presented as **hypotheses to check**, never as established needs.
@@ -42,6 +48,16 @@ presented as **hypotheses to check**, never as established needs.
     rationale and the evidence behind it.
 12. **Research brief** — a rendered Markdown brief, plus a structured intelligence profile.
 
+### Phase 3 — outreach
+
+13. **Outreach** — prepared from one opportunity, one capability and one recipient.
+14. **Evidence-bound writing** — every sentence that asserts something about the company is a
+    row in `outreach_claims` linked by foreign key to the evidence behind it.
+15. **Validation** — automated checks that block approval, naming the exact offending sentence.
+16. **Human approval** — the only route to a Gmail draft.
+17. **Gmail drafts** — created with the `gmail.compose` scope only.
+18. **Manual send tracking, follow-ups, outcomes and analytics.**
+
 ---
 
 ## How the reasoning is kept honest
@@ -58,6 +74,10 @@ This is the part that matters most, so it is worth stating plainly.
 | Silent conflict resolution | Disagreements are recorded as contradictions with every value named, and a contradicted claim can never score `high`. |
 | LLM hallucination | The model is never asked what a company needs. It is given retrieved text, and any claim whose excerpt is not present in that text is **discarded** — the run detail page reports how many were dropped. |
 | Fabricated contacts | Names come only from first-party pages; emails only from literal text. No address is ever derived from a name. |
+| Generic agency spam | Emails are composed *from* evidence excerpts. "Dear Sir/Madam", "leading agency", "world class" and false urgency are detected and flagged. |
+| Claiming a relationship UBM does not have | "we have worked with", "our client", "case study", "proven results" are **blocking errors**, not warnings. |
+| Invented numbers in an email | A figure in a sentence must appear in the evidence that sentence cites, or the draft is blocked. |
+| Autonomous sending | The delivery provider interface has no `send` method. Approval is required before a draft; sending is recorded, never observed. |
 
 ---
 
@@ -227,6 +247,14 @@ change crawling behaviour.
 | `opportunities` + link tables | hypotheses, linked to evidence and signals |
 | `decision_makers` | publicly listed people, with provenance |
 | `research_briefs` | rendered brief + structured intelligence profile |
+| `sender_profiles` | who outreach comes from — configured, never hardcoded |
+| `outreach_campaigns` | grouping and shared defaults; sends nothing |
+| `outreach` | one prepared message; follow-ups are rows with `parent_outreach_id` |
+| `outreach_versions` | every generation and hand edit, never destroyed |
+| `outreach_claims` + `outreach_claim_evidence` | each sentence and the evidence behind it |
+| `outreach_outcomes` | outcome history with structured feedback reasons |
+| `gmail_connections` | OAuth tokens, server-side only |
+| `audit_events` | append-only record of state-changing actions |
 
 Indexed on domain, name, industry, location, status, target id, run id and `created_at`.
 
@@ -266,6 +294,20 @@ Indexed on domain, name, industry, location, status, target id, run id and `crea
 | PATCH | `/api/opportunities/{id}` | accept or dismiss a hypothesis |
 | GET/POST/PATCH | `/api/ubm/capabilities` | the capability catalogue |
 | GET | `/api/ubm/signal-types` | the signal vocabulary a capability can use |
+| POST | `/api/opportunities/{id}/outreach` | prepare an outreach for review |
+| GET | `/api/outreach` · `/api/outreach/{id}` | list (filtered, paginated) and detail |
+| PATCH | `/api/outreach/{id}` | edit subject, body or addressing |
+| POST | `/api/outreach/{id}/regenerate` · `/reset` | new version · restore the generated text |
+| POST | `/api/outreach/{id}/versions/activate` | switch to an earlier version |
+| POST | `/api/outreach/{id}/approve` · `/reject` · `/cancel` | human review |
+| POST | `/api/outreach/{id}/gmail-draft` | create a draft (requires approval) |
+| POST | `/api/outreach/{id}/mark-sent` | record that a person sent it |
+| POST | `/api/outreach/{id}/follow-up-draft` | prepare a follow-up |
+| PATCH | `/api/outreach/{id}/outcome` | record what happened |
+| GET/PATCH | `/api/sender-profile` | the identity messages are written from |
+| GET | `/api/gmail/status` · `/authorize` · `/callback` · `POST /disconnect` | OAuth |
+| GET/POST | `/api/campaigns` · `POST /api/campaigns/{id}/prepare` | grouping |
+| GET | `/api/outreach-analytics` | real counts; rates hidden below a usable sample |
 
 Errors are `{ "code": "...", "message": "...", "details": {...} }`.
 
@@ -296,7 +338,15 @@ Errors are `{ "code": "...", "message": "...", "details": {...} }`.
 | `FRESHNESS_OLDER_DAYS` | `365` | |
 | `LLM_PROVIDER` | `none` | `none` \| `ollama` — optional, additive only |
 | `LLM_MODEL` | `llama3.1:8b` | model name when `LLM_PROVIDER=ollama` |
+| `FOLLOW_UP_INTERVALS` | `3,7,14` | days after "marked sent" that each follow-up falls due |
+| `GOOGLE_CLIENT_ID` | — | **secret**, server-side only |
+| `GOOGLE_CLIENT_SECRET` | — | **secret**, server-side only |
+| `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/gmail/callback` | must match the Google console exactly |
+| `FRONTEND_URL` | `http://localhost:3000` | where the OAuth callback returns the user |
 | `OLLAMA_URL` | `http://localhost:11434` | optional |
+
+Google credentials and OAuth tokens are held server-side only. They are never placed in a
+`NEXT_PUBLIC_*` variable, never returned by any API response, and never committed.
 | `CORS_ORIGINS` | `http://localhost:3000` | |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | frontend → backend |
 
@@ -355,6 +405,50 @@ Mock providers live in `tests/factories_phase2.py`, so no network, database or m
 
 ---
 
+## Connecting Gmail
+
+Optional — everything except draft creation works without it.
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project and
+   **enable the Gmail API**.
+2. Configure the OAuth consent screen. While it is in *Testing*, add your own address under
+   **Test users**.
+3. Create an **OAuth client ID** of type **Web application**, and add this Authorized redirect URI
+   exactly:
+
+   ```
+   http://localhost:8000/api/gmail/callback
+   ```
+
+4. Put the client ID and secret in the **backend** `.env` (never the frontend):
+
+   ```
+   GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=...
+   ```
+
+5. Restart the backend, open **Settings → Gmail**, and click **Connect Gmail**.
+
+The consent screen will ask only to *"Manage drafts and send emails"* — that is the wording
+Google uses for `gmail.compose`, which is the single scope requested. This application never
+calls the send endpoint.
+
+---
+
+## Try Phase 3
+
+1. Open a company → **Opportunities** → **Create outreach** on any hypothesis.
+2. Read **Why this outreach exists**: signal → evidence excerpt → capability → recipient.
+3. Change the tone or length and **Regenerate** — the earlier version is kept under **Versions**.
+4. **Edit** the text; the original stays available via **Reset to generated**.
+5. **Approve**. Until you do, the Gmail button is refused.
+6. With Gmail connected, **Create Gmail draft**, then **Open in Gmail** and send it yourself.
+7. **Mark as sent** → a follow-up date appears → **Create follow-up draft** later.
+8. **Record outcome** with an optional structured reason.
+9. **Outreach** and **Campaigns** show the real counts.
+
+---
+
 ## Known limitations
 
 - **Directory results.** The domain blocklist catches the common aggregators, but new listing
@@ -381,28 +475,45 @@ Mock providers live in `tests/factories_phase2.py`, so no network, database or m
 - **The LLM layer is untested against a live model** in this build — `LLM_PROVIDER=none` is the
   default and every result shown was produced deterministically. The guard rails are covered by
   unit tests with a stub provider.
+- **Email wording is composed, not written.** The deterministic writer assembles sentences from
+  evidence, which guarantees traceability but yields a narrower range of phrasing than a model
+  would. A model-backed `OutreachWriter` can be added behind the same interface.
+- **Gmail was not exercised against live Google credentials** in this build. The provider,
+  OAuth flow and error paths are implemented and unit-tested with a fake; the first real
+  connection may still surface console configuration issues (redirect URI, test users).
+- **Sending is never verified.** "Marked sent" is what a person recorded. Reading the Gmail
+  sent folder would need a further scope, which this phase deliberately does not request.
+- **Single user.** There is no authentication, so `owner` and the audit `actor` come from the
+  sender profile rather than a signed-in account.
 
 ---
 
-## Phase 3 — recommended next step
+## What comes next
 
-Phase 2 ends at the research brief. Phase 3 turns a reviewed hypothesis into outreach, with a
-human in the loop at every step. The first increment should be **draft generation behind human
-approval**, not sending.
+Phase 3 ends at analytics. Nothing here should become autonomous sending.
 
-Concretely:
+**Worth more than new features, in order:**
 
-1. Add `outreach_drafts`: `opportunity_id`, `decision_maker_id`, `subject`, `body`,
-   `status` (`draft` / `approved` / `rejected` / `sent`), `approved_by`, `evidence_ids`. Keeping
-   the evidence ids on the draft means a reviewer can see which observation each sentence rests
-   on — the same traceability rule Phase 2 established.
-2. Generate drafts only from `supported` opportunities that a human has not dismissed, using the
-   existing `LLMProvider` interface with the same verification discipline: any sentence citing a
-   fact must map to a stored evidence row.
-3. Build the review queue UI first, and leave sending unimplemented until approval works.
-4. Only then add a Gmail draft adapter — writing to *drafts*, never sending — behind a
-   `DeliveryProvider` interface, so a different mail backend needs no change to the generator.
+1. **Real publication dates** (JSON-LD, `article:published_time`, sitemaps). Freshness currently
+   rests on retrieval time for most sources, which weakens every downstream confidence figure
+   and makes "recent" in an email less defensible than it should be.
+2. **Decision-maker coverage.** Most outreach currently has no email address, which is the single
+   biggest blocker to actually using the Gmail step.
+3. **A model-backed `OutreachWriter`**, behind the existing interface, with the same rule the
+   Phase 2 extractor uses: any sentence citing a fact must map to a stored evidence row, and is
+   dropped otherwise.
 
-Before any of that, two Phase 2 improvements are worth more than new features: obtaining real
-publication dates (sitemaps, `article:published_time` meta tags, JSON-LD) so freshness stops
-resting on retrieval time, and narrowing capability matching so `candidate` is more selective.
+**Paid / scale mode** — all of these are adapters behind interfaces that already exist:
+
+| Interface | Free implementation today | Paid adapters later |
+| --- | --- | --- |
+| `SearchProvider` | SearXNG, DuckDuckGo | Serper, Exa, Brave |
+| `CrawlerProvider` | httpx, Crawl4AI | Firecrawl, Apify |
+| `ResearchSourceProvider` | web search | paid news/research APIs |
+| `DecisionMakerProvider` | public company pages | Apollo, Clay, ZoomInfo, Hunter |
+| `LLMProvider` | Ollama | OpenAI, Anthropic, Gemini |
+| `OutreachDeliveryProvider` | Gmail drafts | Smartlead, Instantly, CRM sync |
+
+Scale-mode features — sequencing, automated follow-ups, team collaboration, CRM — are
+deliberately not built. The approval gate is the point of the product, and automating past it
+would remove the thing that makes the output trustworthy.

@@ -1,9 +1,11 @@
 "use client";
 
 import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import * as React from "react";
 import useSWR from "swr";
 
 import { CapabilityManager } from "@/components/company/capability-manager";
+import { GmailSettings, SenderProfileSettings } from "@/components/outreach/gmail-settings";
 import { PageHeader } from "@/components/domain/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,14 @@ import { api } from "@/lib/api";
 import { humanize } from "@/lib/format";
 
 export default function SettingsPage() {
+  return (
+    <React.Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <SettingsContent />
+    </React.Suspense>
+  );
+}
+
+function SettingsContent() {
   const { data, error, isLoading, mutate } = useSWR("status", api.status, {
     refreshInterval: 30_000,
   });
@@ -116,6 +126,11 @@ export default function SettingsPage() {
               </p>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <GmailSettings />
+          <SenderProfileSettings />
         </div>
 
         <CapabilityManager />

@@ -1,4 +1,12 @@
-import { Building2, LayoutDashboard, Microscope, Radar, Settings, Target } from "lucide-react";
+import {
+  Building2,
+  LayoutDashboard,
+  Mail,
+  Microscope,
+  Radar,
+  Settings,
+  Target,
+} from "lucide-react";
 import type * as React from "react";
 
 export interface NavItem {
@@ -13,6 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/runs", label: "Discovery Runs", icon: Radar },
   { href: "/research", label: "Research", icon: Microscope },
+  { href: "/outreach", label: "Outreach", icon: Mail },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

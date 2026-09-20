@@ -92,6 +92,7 @@ function CompanyDetailContent() {
     ids: number[];
   } | null>(null);
   const [pendingOpportunity, setPendingOpportunity] = React.useState<number | null>(null);
+  const [outreachBusy, setOutreachBusy] = React.useState<number | null>(null);
 
   const company = useSWR(key ? ["company", key] : null, () => api.getCompany(id));
   const research = useSWR(key ? ["research", key] : null, () => api.companyResearch(id));
@@ -141,6 +142,22 @@ function CompanyDetailContent() {
       );
     } finally {
       setStarting(false);
+    }
+  }
+
+  async function createOutreach(opportunity: Opportunity) {
+    setOutreachBusy(opportunity.id);
+    setActionError(null);
+    try {
+      // The backend reuses an existing outreach for the same opportunity and
+      // recipient, so this is safe to click twice.
+      const created = await api.createOutreach(opportunity.id);
+      router.push(`/outreach/${created.id}`);
+    } catch (error) {
+      setActionError(
+        error instanceof ApiError ? error.message : "Could not prepare the outreach.",
+      );
+      setOutreachBusy(null);
     }
   }
 
@@ -536,6 +553,8 @@ function CompanyDetailContent() {
                   }
                   onDismiss={(item) => setOpportunityStatus(item, "dismissed")}
                   onRestore={(item) => setOpportunityStatus(item, "candidate")}
+                  onCreateOutreach={createOutreach}
+                  outreachBusy={outreachBusy === opportunity.id}
                 />
               ))}
             </div>

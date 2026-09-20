@@ -8,7 +8,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import capabilities, companies, research, runs, system, targets
+from app.api.routes import (
+    campaigns,
+    capabilities,
+    companies,
+    gmail,
+    outreach,
+    research,
+    runs,
+    system,
+    targets,
+)
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging, get_logger
@@ -88,6 +98,9 @@ app.include_router(runs.router)
 app.include_router(companies.router)
 app.include_router(research.router)
 app.include_router(capabilities.router)
+app.include_router(outreach.router)
+app.include_router(campaigns.router)
+app.include_router(gmail.router)
 
 
 @app.get("/", tags=["system"])

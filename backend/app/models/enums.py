@@ -213,3 +213,126 @@ class VerificationStatus(StrEnum):
     PUBLIC_THIRD_PARTY = "public_third_party"
     ROLE_ONLY = "role_only"
     UNVERIFIED = "unverified"
+
+
+# --------------------------------------------------------------------------- #
+# Phase 3: outreach, approval, Gmail drafts, follow-ups
+# --------------------------------------------------------------------------- #
+
+
+class OutreachStatus(StrEnum):
+    """Lifecycle of one outreach message.
+
+    ``GMAIL_DRAFT_CREATED`` deliberately sits before ``SENT``: creating a
+    draft is not sending, and the system never claims otherwise.
+    """
+
+    DRAFT = "draft"
+    REVIEW = "review"
+    APPROVED = "approved"
+    GMAIL_DRAFT_CREATED = "gmail_draft_created"
+    SENT = "sent"
+    FOLLOW_UP_DUE = "follow_up_due"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
+
+
+class OutreachObjective(StrEnum):
+    START_CONVERSATION = "start_conversation"
+    REQUEST_SHORT_CALL = "request_short_call"
+    SHARE_IDEA = "share_idea"
+    EXPLORE_PARTNERSHIP = "explore_partnership"
+    INTRODUCE_CAPABILITY = "introduce_capability"
+    FOLLOW_UP = "follow_up"
+    RECONNECT = "reconnect"
+
+
+class OutreachTone(StrEnum):
+    PROFESSIONAL = "professional"
+    CONVERSATIONAL = "conversational"
+    DIRECT = "direct"
+    WARM = "warm"
+
+
+class MessageLength(StrEnum):
+    SHORT = "short"
+    MEDIUM = "medium"
+
+
+class GenerationMethod(StrEnum):
+    AI = "ai"
+    DETERMINISTIC = "deterministic"
+    USER_EDIT = "user_edit"
+    REGENERATED = "regenerated"
+
+
+class ClaimKind(StrEnum):
+    """What role a generated sentence plays.
+
+    ``COMPANY_FACT`` and ``SIGNAL_REFERENCE`` must carry evidence;
+    the others are about UBM or the ask, so they carry none.
+    """
+
+    COMPANY_FACT = "company_fact"
+    SIGNAL_REFERENCE = "signal_reference"
+    CAPABILITY_STATEMENT = "capability_statement"
+    CALL_TO_ACTION = "call_to_action"
+    GREETING = "greeting"
+    CLOSING = "closing"
+
+
+class OutcomeStatus(StrEnum):
+    NO_RESPONSE = "no_response"
+    REPLIED = "replied"
+    INTERESTED = "interested"
+    NOT_INTERESTED = "not_interested"
+    MEETING_SCHEDULED = "meeting_scheduled"
+    OPPORTUNITY_WON = "opportunity_won"
+    OPPORTUNITY_LOST = "opportunity_lost"
+    DO_NOT_CONTACT = "do_not_contact"
+
+
+class OutcomeReason(StrEnum):
+    """Optional structured feedback, stored for later analysis of the
+    opportunity engine. Nothing is trained on it automatically."""
+
+    WRONG_OPPORTUNITY = "wrong_opportunity"
+    WRONG_PERSON = "wrong_person"
+    WRONG_COMPANY = "wrong_company"
+    TIMING = "timing"
+    ALREADY_HAS_PROVIDER = "already_has_provider"
+    NO_BUDGET = "no_budget"
+    NOT_RELEVANT = "not_relevant"
+    OTHER = "other"
+
+
+class CampaignStatus(StrEnum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+
+
+class GmailConnectionStatus(StrEnum):
+    CONNECTED = "connected"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    DISCONNECTED = "disconnected"
+
+
+class AuditAction(StrEnum):
+    OUTREACH_CREATED = "outreach_created"
+    EMAIL_GENERATED = "email_generated"
+    EMAIL_EDITED = "email_edited"
+    EMAIL_REGENERATED = "email_regenerated"
+    VERSION_ACTIVATED = "version_activated"
+    EMAIL_APPROVED = "email_approved"
+    EMAIL_REJECTED = "email_rejected"
+    GMAIL_DRAFT_CREATED = "gmail_draft_created"
+    GMAIL_CONNECTED = "gmail_connected"
+    GMAIL_DISCONNECTED = "gmail_disconnected"
+    MARKED_SENT = "marked_sent"
+    FOLLOW_UP_CREATED = "follow_up_created"
+    OUTCOME_UPDATED = "outcome_updated"
+    OUTREACH_CANCELLED = "outreach_cancelled"
+    CAMPAIGN_CREATED = "campaign_created"

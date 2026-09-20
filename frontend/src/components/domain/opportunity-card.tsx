@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Layers } from "lucide-react";
+import { ChevronRight, Layers, Mail } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -23,13 +23,19 @@ export function OpportunityCard({
   onViewEvidence,
   onDismiss,
   onRestore,
+  onCreateOutreach,
   busy,
+  outreachBusy,
+  existingOutreachId,
 }: {
   opportunity: Opportunity;
   onViewEvidence: (opportunity: Opportunity) => void;
   onDismiss?: (opportunity: Opportunity) => void;
   onRestore?: (opportunity: Opportunity) => void;
+  onCreateOutreach?: (opportunity: Opportunity) => void;
   busy?: boolean;
+  outreachBusy?: boolean;
+  existingOutreachId?: number;
 }) {
   const dismissed = opportunity.status === "dismissed";
 
@@ -86,6 +92,20 @@ export function OpportunityCard({
           >
             View evidence <ChevronRight />
           </Button>
+          {onCreateOutreach && !dismissed ? (
+            <Button
+              size="sm"
+              onClick={() => onCreateOutreach(opportunity)}
+              loading={outreachBusy}
+              title={
+                existingOutreachId
+                  ? "Open the outreach already prepared for this opportunity"
+                  : "Prepare a message for review. Nothing is sent."
+              }
+            >
+              <Mail /> {existingOutreachId ? "Open outreach" : "Create outreach"}
+            </Button>
+          ) : null}
           {dismissed
             ? onRestore && (
                 <Button variant="ghost" size="sm" onClick={() => onRestore(opportunity)} loading={busy}>
