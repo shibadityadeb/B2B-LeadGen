@@ -2,12 +2,15 @@
 
 A B2B growth opportunity engine 
 
-**Phase 1 scope:** define a target → discover companies from live web search → store them with
-source provenance → run an initial website crawl. Every company in the database is traceable to
-the search result that produced it.
+**Phase 1:** define a target → discover companies from live web search → store them with source
+provenance → run an initial website crawl.
 
-Phase 1 deliberately makes **no opportunity judgements** and uses **no LLM**. It builds the
-evidence base that Phase 2 will interpret.
+**Phase 2:** research a company → collect public sources → extract evidence → derive business
+signals → find publicly listed decision makers → map UBM capabilities → produce an
+evidence-backed research brief.
+
+Every claim in the system points back to a source URL and a verbatim excerpt. Opportunities are
+presented as **hypotheses to check**, never as established needs.
 
 ---
 
@@ -23,6 +26,38 @@ evidence base that Phase 2 will interpret.
 4. **Initial crawl** — fetches the homepage and a handful of standard pages (About, Products,
    Services, Contact, News, Blog, Careers), respecting `robots.txt` and rate limits.
 5. **Deterministic summary** — counts and verbatim extracts only. No generated prose.
+
+### Phase 2 — company intelligence
+
+6. **Research run** — a per-company pipeline with real stages and progress.
+7. **Sources** — Phase 1 pages plus public news, press and event pages, each hashed, typed and
+   rated for reliability (first-party > press > third-party > aggregated).
+8. **Evidence** — one claim per row, each with a verbatim excerpt, the source URL, a publication
+   date where one exists, and an epistemic status (`known` / `inferred` / `possible` / `unknown`).
+9. **Signals** — evidence grouped into business signals (expansion, marketing, events, hiring,
+   partnerships…), retaining every evidence id.
+10. **Decision makers** — people published on the company's *own* pages. A role with no published
+    name stays unnamed, and an email is stored only when the address literally appears.
+11. **Opportunity hypotheses** — UBM capabilities matched to observed signals, with a plain-language
+    rationale and the evidence behind it.
+12. **Research brief** — a rendered Markdown brief, plus a structured intelligence profile.
+
+---
+
+## How the reasoning is kept honest
+
+This is the part that matters most, so it is worth stating plainly.
+
+| Risk | What the system does |
+| --- | --- |
+| Inventing facts | Every evidence row stores a **verbatim excerpt**; the UI shows it next to the source URL so any claim can be checked in one click. |
+| Industry-specific rules | There are none. Patterns describe *business events* ("opened a store", "is hiring"), and capabilities are matched to **signal types**, not industries. An unseen industry behaves exactly like a familiar one. |
+| Opaque AI scores | Confidence is a weighted sum of five named components — source quality, source count, recency, directness, agreement — and the breakdown is stored and shown. It estimates **evidence quality**, not truth. |
+| Fake freshness | A page with no publication date yields freshness measured from *retrieval*, which is labelled `est.` in the UI and **discounted** in the confidence score. |
+| Overstated conclusions | A hypothesis only reaches `supported` when several signals agree **across more than one source**. A single self-reported page cannot promote it. |
+| Silent conflict resolution | Disagreements are recorded as contradictions with every value named, and a contradicted claim can never score `high`. |
+| LLM hallucination | The model is never asked what a company needs. It is given retrieved text, and any claim whose excerpt is not present in that text is **discarded** — the run detail page reports how many were dropped. |
+| Fabricated contacts | Names come only from first-party pages; emails only from literal text. No address is ever derived from a name. |
 
 ---
 
@@ -181,8 +216,17 @@ change crawling behaviour.
 | `search_queries` | the generated queries and their outcome |
 | `search_results` | every raw result, kept verbatim, with accept/reject decision |
 | `companies` | deduplicated by `canonical_domain` (unique) |
-| `company_sources` | **evidence provenance** — where each company came from |
+| `company_sources` | discovery provenance — where each company came from |
 | `company_pages` | crawled pages, unique per `(company_id, url)` |
+| `research_runs` | one research execution, with live stage and real counters |
+| `research_sources` | retrieved documents: content, hash, type, reliability |
+| `evidence` | one claim + verbatim excerpt + source, unique per fingerprint |
+| `contradictions` | disagreeing sources, one row per disputed attribute |
+| `signals` / `signal_evidence` | grouped interpretations and their evidence links |
+| `ubm_capabilities` | the capability catalogue — **data, editable at runtime** |
+| `opportunities` + link tables | hypotheses, linked to evidence and signals |
+| `decision_makers` | publicly listed people, with provenance |
+| `research_briefs` | rendered brief + structured intelligence profile |
 
 Indexed on domain, name, industry, location, status, target id, run id and `created_at`.
 
@@ -208,6 +252,20 @@ Indexed on domain, name, industry, location, status, target id, run id and `crea
 | POST | `/api/companies/{id}/crawl` | enqueue a website crawl (202) |
 | GET | `/api/dashboard` | real counts |
 | GET | `/api/status` | dependency health, never secrets |
+| POST | `/api/companies/{id}/research` | start a research run (202) |
+| GET | `/api/companies/{id}/research` | research state, history and brief |
+| POST | `/api/companies/research/bulk` | queue research for several companies |
+| GET | `/api/companies/{id}/evidence` | evidence, optionally filtered by `ids` |
+| GET | `/api/companies/{id}/signals` | derived business signals |
+| GET | `/api/companies/{id}/opportunities` | hypotheses with their evidence ids |
+| GET | `/api/companies/{id}/decision-makers` | publicly listed people |
+| GET | `/api/companies/{id}/research-sources` | retrieved sources |
+| GET | `/api/companies/{id}/contradictions` | conflicting public information |
+| GET | `/api/companies/{id}/brief` | rendered research brief |
+| GET | `/api/research-runs` · `/api/research-runs/{id}` | run history and detail |
+| PATCH | `/api/opportunities/{id}` | accept or dismiss a hypothesis |
+| GET/POST/PATCH | `/api/ubm/capabilities` | the capability catalogue |
+| GET | `/api/ubm/signal-types` | the signal vocabulary a capability can use |
 
 Errors are `{ "code": "...", "message": "...", "details": {...} }`.
 
@@ -230,7 +288,15 @@ Errors are `{ "code": "...", "message": "...", "details": {...} }`.
 | `CRAWL_DELAY_SECONDS` | `1.0` | between page fetches |
 | `CRAWL_RESPECT_ROBOTS` | `true` | |
 | `CRAWL_USER_AGENT` | identifies the crawler | |
-| `OLLAMA_URL` | `http://localhost:11434` | optional, **unused by Phase 1 logic** |
+| `RESEARCH_MAX_SOURCES` | `25` | documents one research run may discover |
+| `RESEARCH_MAX_PAGES_TO_CRAWL` | `14` | documents one research run may fetch |
+| `RESEARCH_BATCH_CONCURRENCY` | `2` | companies researched at once in a bulk run |
+| `FRESHNESS_RECENT_DAYS` | `30` | recent / active / older / stale thresholds |
+| `FRESHNESS_ACTIVE_DAYS` | `90` | |
+| `FRESHNESS_OLDER_DAYS` | `365` | |
+| `LLM_PROVIDER` | `none` | `none` \| `ollama` — optional, additive only |
+| `LLM_MODEL` | `llama3.1:8b` | model name when `LLM_PROVIDER=ollama` |
+| `OLLAMA_URL` | `http://localhost:11434` | optional |
 | `CORS_ORIGINS` | `http://localhost:3000` | |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | frontend → backend |
 
@@ -267,9 +333,25 @@ and desktop widths.
 cd backend && .venv/bin/python -m pytest
 ```
 
-Covers domain normalization, deduplication, query generation, target validation, discovery result
-processing, crawl behaviour (including robots.txt and re-crawl idempotency), summary extraction
-and the API contract. Runs against in-memory SQLite — no services required.
+Covers Phase 1 (domain normalization, deduplication, query generation, target validation,
+discovery processing, crawl behaviour, the API contract) and Phase 2 (evidence extraction and
+deduplication, freshness, the confidence formula, contradiction handling, signal derivation,
+capability matching, decision-maker validation, LLM guard rails, research-run idempotency and
+change detection, and the research API).
+
+Mock providers live in `tests/factories_phase2.py`, so no network, database or model is required.
+
+---
+
+## Try Phase 2
+
+1. Open a company that has been crawled, e.g. from **Companies**.
+2. Click **Research company** and watch the real stages — sources, evidence, signals, brief.
+3. Open **Opportunities**, then **View evidence** on any card to see the excerpts behind it.
+4. Open **Decision makers**, **Sources** and **History**.
+5. Click **Research company** again: the second run reuses unchanged pages, reports `+0 new
+   evidence`, and appears as a separate row in **History**.
+6. Select several companies on **Companies** → **Research selected** to queue a batch.
 
 ---
 
@@ -285,23 +367,42 @@ and the API contract. Runs against in-memory SQLite — no services required.
 - **In-process jobs** run inside the API process; restarting the backend abandons an in-flight
   run (it stays `running` in the database rather than being resumed).
 - **Search throughput** is intentionally slow — one query per second — to stay polite.
+- **Publication dates are usually absent.** Most marketing pages do not state one, so freshness
+  falls back to retrieval time. This is labelled `est.` in the UI and discounted in confidence,
+  but it means "recent" often means "recently seen", not "recently happened".
+- **Decision-maker coverage is thin** on sites without a team or press page — which is most small
+  retail sites. The system reports nobody rather than guessing; in testing, named people were
+  found only where the company publishes them.
+- **Company names** inherited from Phase 1 can be listicle titles ("BlueStone Jewellery Shops in
+  Indore"), which then appear in generated rationales.
+- **Capability matching is broad**: a company with several signals will match most capabilities as
+  `candidate`. The `supported` status, which needs multi-source corroboration, is the meaningful
+  one.
+- **The LLM layer is untested against a live model** in this build — `LLM_PROVIDER=none` is the
+  default and every result shown was produced deterministically. The guard rails are covered by
+  unit tests with a stub provider.
 
 ---
 
-## Phase 2 — recommended next step
+## Phase 3 — recommended next step
 
-The evidence base is in place; the next increment should be **signal extraction over the pages
-already crawled**, before adding decision-maker discovery or opportunity matching.
+Phase 2 ends at the research brief. Phase 3 turns a reviewed hypothesis into outreach, with a
+human in the loop at every step. The first increment should be **draft generation behind human
+approval**, not sending.
 
 Concretely:
 
-1. Add a `company_signals` table: `company_id`, `signal_type` (expansion, hiring, product launch,
-   event, campaign, partnership), `evidence_page_id` → `company_pages.id`, `evidence_excerpt`,
-   `detected_at`, `confidence`. The foreign key to the page is the point — **every derived
-   insight must be traceable to the source text it came from**.
-2. Deepen the crawler to follow News/Blog/Careers listings (the page classifier already labels
-   them) with a configurable page budget.
-3. Add a `SignalExtractor` provider interface with a deterministic rule-based implementation
-   first, then an Ollama-backed one behind the same interface — mirroring the existing
-   search/crawler provider pattern, so the LLM stays optional.
-4. Only then move to decision-maker discovery and UBM capability matching.
+1. Add `outreach_drafts`: `opportunity_id`, `decision_maker_id`, `subject`, `body`,
+   `status` (`draft` / `approved` / `rejected` / `sent`), `approved_by`, `evidence_ids`. Keeping
+   the evidence ids on the draft means a reviewer can see which observation each sentence rests
+   on — the same traceability rule Phase 2 established.
+2. Generate drafts only from `supported` opportunities that a human has not dismissed, using the
+   existing `LLMProvider` interface with the same verification discipline: any sentence citing a
+   fact must map to a stored evidence row.
+3. Build the review queue UI first, and leave sending unimplemented until approval works.
+4. Only then add a Gmail draft adapter — writing to *drafts*, never sending — behind a
+   `DeliveryProvider` interface, so a different mail backend needs no change to the generator.
+
+Before any of that, two Phase 2 improvements are worth more than new features: obtaining real
+publication dates (sitemaps, `article:published_time` meta tags, JSON-LD) so freshness stops
+resting on retrieval time, and narrowing capability matching so `candidate` is more selective.

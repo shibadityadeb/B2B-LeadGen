@@ -3,6 +3,7 @@
 import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import useSWR from "swr";
 
+import { CapabilityManager } from "@/components/company/capability-manager";
 import { PageHeader } from "@/components/domain/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ export default function SettingsPage() {
           />
         </Card>
       ) : (
+        <div className="space-y-5">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <Card>
             <CardHeader>
@@ -114,6 +116,9 @@ export default function SettingsPage() {
               </p>
             </CardContent>
           </Card>
+        </div>
+
+        <CapabilityManager />
         </div>
       )}
     </>

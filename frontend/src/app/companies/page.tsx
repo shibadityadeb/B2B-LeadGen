@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, LayoutGrid, List, Search, X } from "lucide-react";
+import { Building2, LayoutGrid, List, Microscope, Search, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -15,7 +15,8 @@ import { Input, Select } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
 import { Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { InlineError } from "@/components/ui/states";
+import { api, ApiError } from "@/lib/api";
 import { formatDate, humanize } from "@/lib/format";
 import type { CompanyListItem } from "@/lib/types";
 
@@ -53,6 +54,10 @@ function CompaniesContent() {
   const [status, setStatus] = React.useState("");
   const [discoveredAfter, setDiscoveredAfter] = React.useState("");
   const [view, setView] = React.useState<"table" | "cards">("table");
+  const [selected, setSelected] = React.useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy] = React.useState(false);
+  const [bulkMessage, setBulkMessage] = React.useState<string | null>(null);
+  const [bulkError, setBulkError] = React.useState<string | null>(null);
 
   // Debounce the free-text search so typing does not hammer the API.
   React.useEffect(() => {
@@ -80,6 +85,47 @@ function CompaniesContent() {
     { keepPreviousData: true },
   );
   const options = useSWR("company-filters", api.companyFilters);
+
+  function toggle(companyId: number) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
+      return next;
+    });
+  }
+
+  function toggleAllOnPage(items: CompanyListItem[]) {
+    setSelected((current) => {
+      const next = new Set(current);
+      const allSelected = items.every((item) => next.has(item.id));
+      for (const item of items) {
+        if (allSelected) next.delete(item.id);
+        else next.add(item.id);
+      }
+      return next;
+    });
+  }
+
+  async function researchSelected() {
+    setBulkBusy(true);
+    setBulkError(null);
+    setBulkMessage(null);
+    try {
+      const result = await api.bulkResearch([...selected]);
+      const parts = [`${result.queued.length} queued for research`];
+      if (result.skipped.length) parts.push(`${result.skipped.length} skipped`);
+      setBulkMessage(parts.join(" · "));
+      setSelected(new Set());
+      await mutate();
+    } catch (error) {
+      setBulkError(
+        error instanceof ApiError ? error.message : "Could not queue research.",
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   const filtersApplied =
     Boolean(search || industry || location || status || discoveredAfter || targetId);
@@ -191,6 +237,33 @@ function CompaniesContent() {
         ) : null}
       </Card>
 
+      {bulkError ? <InlineError className="mb-4" message={bulkError} /> : null}
+      {bulkMessage ? (
+        <div
+          role="status"
+          className="mb-4 rounded-lg border border-accent-border bg-accent-soft px-3 py-2 text-sm text-accent"
+        >
+          {bulkMessage}
+        </div>
+      ) : null}
+
+      {selected.size > 0 ? (
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <p className="text-sm text-foreground">
+            <span className="font-medium">{selected.size}</span>{" "}
+            {selected.size === 1 ? "company" : "companies"} selected
+          </p>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
+            <Button size="sm" onClick={researchSelected} loading={bulkBusy}>
+              <Microscope /> Research selected
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
       <Card>
         {isLoading && !data ? (
           <TableSkeleton columns={6} />
@@ -223,6 +296,18 @@ function CompaniesContent() {
               <Table>
                 <thead>
                   <tr>
+                    <Th className="w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all companies on this page"
+                        className="size-4 cursor-pointer accent-[var(--accent)]"
+                        checked={
+                          data.items.length > 0 &&
+                          data.items.every((item) => selected.has(item.id))
+                        }
+                        onChange={() => toggleAllOnPage(data.items)}
+                      />
+                    </Th>
                     <Th>Company</Th>
                     <Th>Industry</Th>
                     <Th>Location</Th>
@@ -234,6 +319,15 @@ function CompaniesContent() {
                 <tbody>
                   {data.items.map((company) => (
                     <Tr key={company.id}>
+                      <Td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${company.name}`}
+                          className="size-4 cursor-pointer accent-[var(--accent)]"
+                          checked={selected.has(company.id)}
+                          onChange={() => toggle(company.id)}
+                        />
+                      </Td>
                       <Td>
                         <Link href={`/companies/${company.id}`} className="group block min-w-0">
                           <span className="block truncate font-medium text-foreground group-hover:text-accent">

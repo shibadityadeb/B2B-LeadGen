@@ -3,9 +3,13 @@
 import {
   Building2,
   FileSearch,
+  Layers,
+  Microscope,
   Plus,
+  Quote,
   Radar,
   Target as TargetIcon,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -76,6 +80,36 @@ export default function DashboardPage() {
               />
             </div>
           )}
+
+          {/* Phase 2 intelligence metrics, all read from the database. */}
+          {!isLoading && (data?.research_runs_count ?? 0) > 0 ? (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                label="Research runs"
+                value={data?.research_runs_count ?? 0}
+                icon={Microscope}
+                hint={summariseRuns(data?.research_runs_by_status)}
+              />
+              <StatCard
+                label="Evidence collected"
+                value={data?.evidence_count ?? 0}
+                icon={Quote}
+                hint={`${formatNumber(data?.fresh_evidence_count ?? 0)} published in the last 30 days`}
+              />
+              <StatCard
+                label="Potential opportunities"
+                value={data?.opportunities_count ?? 0}
+                icon={Layers}
+                hint={`across ${formatNumber(data?.signals_count ?? 0)} business signals`}
+              />
+              <StatCard
+                label="Decision makers"
+                value={data?.decision_makers_count ?? 0}
+                icon={Users}
+                hint="publicly listed roles and names"
+              />
+            </div>
+          ) : null}
 
           {!isLoading && !hasAnyData ? (
             <Card className="mt-6">

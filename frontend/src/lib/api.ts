@@ -1,4 +1,5 @@
 import type {
+  BulkResearchResponse,
   Company,
   CompanyDetail,
   CompanyFilterOptions,
@@ -6,8 +7,21 @@ import type {
   DashboardStats,
   DiscoveryRun,
   DiscoveryRunDetail,
+  CompanyResearchState,
+  Contradiction,
+  DecisionMaker,
+  Evidence,
+  Opportunity,
+  OpportunityStatus,
   Paginated,
+  ResearchBrief,
+  ResearchRun,
+  ResearchRunDetail,
+  ResearchSource,
+  Signal,
+  SignalTypeOption,
   SystemStatus,
+  UbmCapability,
   Target,
   TargetInput,
   TargetListItem,
@@ -128,6 +142,64 @@ export const api = {
   getCompany: (id: number) => request<CompanyDetail>(`/api/companies/${id}`),
   crawlCompany: (id: number) =>
     request<Company>(`/api/companies/${id}/crawl`, { method: "POST" }),
+
+  // --- phase 2: research ---
+  startResearch: (id: number) =>
+    request<ResearchRun>(`/api/companies/${id}/research`, { method: "POST" }),
+  bulkResearch: (companyIds: number[]) =>
+    request<BulkResearchResponse>("/api/companies/research/bulk", {
+      method: "POST",
+      body: JSON.stringify({ company_ids: companyIds }),
+    }),
+  companyResearch: (id: number) =>
+    request<CompanyResearchState>(`/api/companies/${id}/research`),
+  companyEvidence: (id: number, params: { ids?: number[]; evidence_type?: string } = {}) =>
+    request<Evidence[]>(
+      `/api/companies/${id}/evidence${query({
+        ids: params.ids?.length ? params.ids.join(",") : undefined,
+        evidence_type: params.evidence_type,
+      })}`,
+    ),
+  companySignals: (id: number) => request<Signal[]>(`/api/companies/${id}/signals`),
+  companyOpportunities: (id: number) =>
+    request<Opportunity[]>(`/api/companies/${id}/opportunities`),
+  companyDecisionMakers: (id: number) =>
+    request<DecisionMaker[]>(`/api/companies/${id}/decision-makers`),
+  companyResearchSources: (id: number) =>
+    request<ResearchSource[]>(`/api/companies/${id}/research-sources`),
+  companyContradictions: (id: number) =>
+    request<Contradiction[]>(`/api/companies/${id}/contradictions`),
+  companyBrief: (id: number) => request<ResearchBrief>(`/api/companies/${id}/brief`),
+
+  listResearchRuns: (params: { page?: number; page_size?: number } = {}) =>
+    request<Paginated<ResearchRun>>(`/api/research-runs${query(params)}`),
+  getResearchRun: (id: number) => request<ResearchRunDetail>(`/api/research-runs/${id}`),
+
+  updateOpportunityStatus: (id: number, status: OpportunityStatus) =>
+    request<Opportunity>(`/api/opportunities/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
+  // --- phase 2: UBM capabilities ---
+  listCapabilities: () => request<UbmCapability[]>("/api/ubm/capabilities"),
+  listSignalTypes: () => request<SignalTypeOption[]>("/api/ubm/signal-types"),
+  createCapability: (payload: {
+    name: string;
+    description: string;
+    category?: string | null;
+    signal_types: string[];
+    rationale_template?: string | null;
+  }) =>
+    request<UbmCapability>("/api/ubm/capabilities", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateCapability: (id: number, payload: Partial<UbmCapability>) =>
+    request<UbmCapability>(`/api/ubm/capabilities/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 };
 
 /** SWR fetcher keyed by a tuple of [name, ...args]. */

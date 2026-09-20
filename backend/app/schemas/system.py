@@ -51,5 +51,16 @@ class DashboardStats(BaseModel):
     pages_count: int
     runs_count: int
     runs_by_status: dict[str, int]
+
+    # --- phase 2 ---
+    research_runs_count: int = 0
+    research_runs_by_status: dict[str, int] = {}
+    evidence_count: int = 0
+    #: Evidence whose *publication* date falls inside the "recent" window.
+    fresh_evidence_count: int = 0
+    signals_count: int = 0
+    opportunities_count: int = 0
+    decision_makers_count: int = 0
+    capabilities_count: int = 0
     recent_runs: list[RecentRunSummary]
     recent_companies: list[RecentCompanySummary]

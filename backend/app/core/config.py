@@ -44,7 +44,32 @@ class Settings(BaseSettings):
     crawl_user_agent: str = "UBM-GrowthEngine/1.0 (+https://www.upshotbrandmedia.com/; research crawler)"
     crawl_max_content_chars: int = 40000
 
-    # --- optional local LLM (NOT used by Phase 1 logic) ---
+    # --- research (phase 2) ---
+    research_max_sources: int = 25
+    research_max_search_queries: int = 6
+    research_results_per_query: int = 10
+    research_max_pages_to_crawl: int = 10
+    # Short factual statements ("X opened 3 new stores in Indore.") are real
+    # evidence; 40+ characters discarded them.
+    research_min_excerpt_chars: int = 30
+    research_max_excerpt_chars: int = 400
+    # How many companies a bulk research batch may process concurrently.
+    research_batch_concurrency: int = 2
+
+    # Freshness thresholds in days. Configurable: these are reporting
+    # conventions, not business rules, and no industry may override them.
+    freshness_recent_days: int = 30
+    freshness_active_days: int = 90
+    freshness_older_days: int = 365
+
+    # --- LLM reasoning layer (optional; the pipeline works without it) ---
+    # none | ollama
+    llm_provider: str = "none"
+    llm_model: str = "llama3.1:8b"
+    llm_timeout_seconds: float = 120.0
+    llm_max_evidence_items: int = 40
+
+    # --- optional local LLM ---
     ollama_url: str = "http://localhost:11434"
 
     @property
