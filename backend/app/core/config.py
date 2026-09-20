@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:3000"
+    #: Optional pattern for origins that change per deployment — Vercel gives
+    #: every preview build its own hostname, which no fixed list can cover.
+    #: Keep it anchored to your own project; `https://.*\.vercel\.app` would
+    #: let any site on Vercel call this API, and there is no authentication.
+    cors_origin_regex: str = ""
 
     # --- database ---
     # postgresql+asyncpg://user:password@host:5432/dbname

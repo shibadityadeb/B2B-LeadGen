@@ -482,7 +482,20 @@ FRONTEND_URL = https://<your-project>.vercel.app
 ```
 
 Without `CORS_ORIGINS` the browser blocks every API call and the app looks
-broken while the backend is perfectly healthy.
+broken while the backend is perfectly healthy. The symptom is
+`No 'Access-Control-Allow-Origin' header is present` in the browser console.
+
+The origin must match **exactly** — no trailing slash, and `https`, not `http`.
+
+Vercel gives every preview build its own hostname, which a fixed list cannot
+cover. To allow your project's previews as well, set:
+
+```
+CORS_ORIGIN_REGEX = https://<your-project>(-[a-z0-9-]+)?\.vercel\.app
+```
+
+Keep it anchored to your own project name. `https://.*\.vercel\.app` would let
+any site hosted on Vercel call your API, and there is no authentication.
 
 ### 4. Gmail, if you want drafts
 

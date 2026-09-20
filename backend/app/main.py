@@ -63,10 +63,23 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
+    # Covers hosts that change per deployment, such as Vercel previews.
+    allow_origin_regex=settings.cors_origin_regex or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if settings.environment != "development" and settings.cors_origin_list == [
+    "http://localhost:3000"
+]:
+    # The single most common deployment mistake: the API is healthy, and the
+    # browser blocks every call, so the app looks broken for no visible reason.
+    logger.warning(
+        "CORS_ORIGINS is still the local default. Browser requests from your "
+        "deployed frontend will be blocked. Set CORS_ORIGINS to the frontend "
+        "URL, with no trailing slash."
+    )
 
 
 @app.exception_handler(AppError)

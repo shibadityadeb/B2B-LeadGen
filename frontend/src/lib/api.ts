@@ -61,8 +61,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       cache: "no-store",
     });
   } catch {
+    // A blocked CORS preflight and a dead server look identical to fetch():
+    // both surface as a TypeError with no status. Name both causes, because
+    // the CORS one is the usual culprit right after a deployment and the app
+    // otherwise just looks broken for no visible reason.
     throw new ApiError(
-      `Cannot reach the API at ${BASE_URL}. Is the backend running?`,
+      `Cannot reach the API at ${BASE_URL}. Either the backend is not running, ` +
+        `or it is not allowing requests from this address — check CORS_ORIGINS ` +
+        `on the backend and NEXT_PUBLIC_API_URL here.`,
       0,
       "network_error",
     );

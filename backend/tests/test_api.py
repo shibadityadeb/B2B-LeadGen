@@ -365,3 +365,31 @@ async def test_a_loopback_url_is_fine_when_running_locally(monkeypatch):
     provider = SearxngSearchProvider(base_url="http://127.0.0.1:8888")
     # Locally this is the normal setup, so it must not be flagged.
     assert provider._points_at_itself is False
+
+
+async def test_a_preview_deployment_origin_can_be_allowed_by_pattern(monkeypatch):
+    """Vercel gives every preview build its own hostname, which no fixed list
+    can cover."""
+    import re
+
+    from app.core.config import settings
+
+    monkeypatch.setattr(
+        settings,
+        "cors_origin_regex",
+        r"https://b2-b-lead-gen-ten(-[a-z0-9-]+)?\.vercel\.app",
+    )
+    pattern = re.compile(settings.cors_origin_regex)
+
+    assert pattern.fullmatch("https://b2-b-lead-gen-ten.vercel.app")
+    assert pattern.fullmatch("https://b2-b-lead-gen-ten-git-main-abc.vercel.app")
+    # It must not open the API to every site hosted on Vercel.
+    assert not pattern.fullmatch("https://someone-elses-app.vercel.app")
+
+
+def test_cors_origins_are_parsed_without_trailing_whitespace(monkeypatch):
+    """A pasted list often carries spaces; an origin must match exactly."""
+    from app.core.config import Settings
+
+    settings = Settings(cors_origins=" https://a.vercel.app , https://b.vercel.app ")
+    assert settings.cors_origin_list == ["https://a.vercel.app", "https://b.vercel.app"]
