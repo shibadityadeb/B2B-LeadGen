@@ -20,11 +20,36 @@ logger = get_logger(__name__)
 class SearxngSearchProvider(SearchProvider):
     name = "searxng"
 
+    #: Addresses that only mean anything on the machine itself.
+    _LOOPBACK = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
+
     def __init__(self, base_url: str | None = None, timeout: float | None = None):
         self.base_url = (base_url or settings.searxng_url).rstrip("/")
         self.timeout = timeout or settings.search_timeout_seconds
 
+    @property
+    def _misconfigured_message(self) -> str:
+        return (
+            f"SEARXNG_URL is {self.base_url}, which on a deployed server means "
+            "this container rather than a search engine. Either set "
+            "SEARCH_PROVIDER=duckduckgo, or deploy SearXNG and point SEARXNG_URL "
+            "at its public URL."
+        )
+
+    @property
+    def _points_at_itself(self) -> bool:
+        """A loopback URL on a deployed server points at the container, not a
+        search engine. It is the most common way this is misconfigured."""
+        return settings.environment != "development" and any(
+            host in self.base_url for host in self._LOOPBACK
+        )
+
     async def search(self, query: str, *, limit: int = 20) -> list[SearchResultItem]:
+        if self._points_at_itself:
+            raise ProviderError(
+                self._misconfigured_message,
+                details={"provider": self.name, "misconfigured": True},
+            )
         params = {
             "q": query,
             "format": "json",
@@ -91,6 +116,8 @@ class SearxngSearchProvider(SearchProvider):
         return items
 
     async def status(self) -> ProviderStatus:
+        if self._points_at_itself:
+            return ProviderStatus(self.name, False, self._misconfigured_message)
         try:
             # Generous: a freshly started instance is slow on its first query.
             async with httpx.AsyncClient(timeout=15.0) as client:

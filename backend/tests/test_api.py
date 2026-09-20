@@ -324,3 +324,44 @@ async def test_duckduckgo_retries_a_throttle_then_reports_it_clearly():
 
     assert attempts["n"] == provider.MAX_ATTEMPTS, "a throttle should be retried"
     assert "searxng" in str(exc.value).lower(), "the message must say how to fix it"
+
+
+async def test_a_loopback_searxng_url_on_a_server_is_explained(monkeypatch):
+    """127.0.0.1 on a deployed instance points at the container itself. The
+    status must say that, not just "not reachable"."""
+    from app.core.config import settings
+    from app.providers.search.searxng import SearxngSearchProvider
+
+    monkeypatch.setattr(settings, "environment", "production")
+    provider = SearxngSearchProvider(base_url="http://127.0.0.1:8888")
+
+    result = await provider.status()
+    assert result.available is False
+    assert "this container" in (result.detail or "")
+    assert "SEARCH_PROVIDER=duckduckgo" in (result.detail or "")
+
+
+async def test_a_misconfigured_searxng_fails_the_search_with_the_same_advice(monkeypatch):
+    """The run must fail with the fix, not with a bare connection error."""
+    import pytest
+
+    from app.core.config import settings
+    from app.core.errors import ProviderError
+    from app.providers.search.searxng import SearxngSearchProvider
+
+    monkeypatch.setattr(settings, "environment", "production")
+    provider = SearxngSearchProvider(base_url="http://localhost:8888")
+
+    with pytest.raises(ProviderError) as exc:
+        await provider.search("anything")
+    assert "SEARCH_PROVIDER=duckduckgo" in str(exc.value)
+
+
+async def test_a_loopback_url_is_fine_when_running_locally(monkeypatch):
+    from app.core.config import settings
+    from app.providers.search.searxng import SearxngSearchProvider
+
+    monkeypatch.setattr(settings, "environment", "development")
+    provider = SearxngSearchProvider(base_url="http://127.0.0.1:8888")
+    # Locally this is the normal setup, so it must not be flagged.
+    assert provider._points_at_itself is False

@@ -441,6 +441,23 @@ Do it in this order — each step needs a URL from the one before.
    | `CORS_ORIGINS` | leave blank for now — you get it in step 2 |
    | `FRONTEND_URL` | leave blank for now |
 
+> **Do not copy `.env.example` into Render.** It is the local configuration and
+> points at `127.0.0.1`, which on a server means the server itself. If you
+> created the service by hand rather than from the blueprint, set these:
+>
+> | Variable | Value |
+> | --- | --- |
+> | `ENVIRONMENT` | `production` |
+> | `SEARCH_PROVIDER` | `duckduckgo` |
+> | `SEARCH_MAX_QUERIES_PER_RUN` | `6` |
+> | `SEARCH_DELAY_SECONDS` | `3` |
+> | `RESEARCH_MAX_SEARCH_QUERIES` | `4` |
+> | `RESEARCH_MAX_PAGES_TO_CRAWL` | `10` |
+> | `CRAWL_DELAY_SECONDS` | `1.5` |
+>
+> Leave `SEARXNG_URL` unset unless you have actually deployed SearXNG. The
+> status page will tell you if it is pointing somewhere meaningless.
+
 4. Deploy. Migrations run automatically on start-up.
 5. Check `https://<your-service>.onrender.com/api/health` returns `{"status":"ok"}`.
 
