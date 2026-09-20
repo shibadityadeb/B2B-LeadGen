@@ -417,6 +417,92 @@ Mock providers live in `tests/factories_phase2.py`, so no network, database or m
 
 ---
 
+## Deploying
+
+Backend on **Render**, frontend on **Vercel**, database on **Neon**.
+
+Do it in this order — each step needs a URL from the one before.
+
+### 1. Backend → Render
+
+1. Push this repository to GitHub.
+2. Render → **New → Blueprint** → select the repo. It reads `render.yaml`.
+3. Render prompts for the values that are not in the file:
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | your Neon string, pasted exactly as Neon gives it |
+   | `CORS_ORIGINS` | leave blank for now — you get it in step 2 |
+   | `FRONTEND_URL` | leave blank for now |
+
+4. Deploy. Migrations run automatically on start-up.
+5. Check `https://<your-service>.onrender.com/api/health` returns `{"status":"ok"}`.
+
+### 2. Frontend → Vercel
+
+1. Vercel → **New Project** → same repo → set **Root Directory** to `frontend`.
+2. Add one environment variable:
+
+   ```
+   NEXT_PUBLIC_API_URL = https://<your-service>.onrender.com
+   ```
+
+3. Deploy, and note the URL Vercel gives you.
+
+### 3. Point them at each other
+
+Back in Render, set both to the Vercel URL and redeploy:
+
+```
+CORS_ORIGINS = https://<your-project>.vercel.app
+FRONTEND_URL = https://<your-project>.vercel.app
+```
+
+Without `CORS_ORIGINS` the browser blocks every API call and the app looks
+broken while the backend is perfectly healthy.
+
+### 4. Gmail, if you want drafts
+
+Add the deployed callback URL to your Google OAuth client, then set in Render:
+
+```
+GOOGLE_CLIENT_ID     = ...
+GOOGLE_CLIENT_SECRET = ...
+GOOGLE_REDIRECT_URI  = https://<your-service>.onrender.com/api/gmail/callback
+```
+
+The redirect URI must match the Google console **exactly**, including `https`.
+
+---
+
+## Two things that will bite you on a free plan
+
+**Free Render instances sleep after 15 minutes of inactivity.** Background work
+runs inside the web process, so a sleep mid-run kills it. The app settles those
+runs on the next start-up and tells you to run them again rather than spinning
+forever — but a research run takes up to two minutes, so on the free plan keep
+the tab open while one is going. The paid Starter plan does not sleep.
+
+**Search is the weak point.** The deployed default is DuckDuckGo, which needs no
+service of its own but limits automated searching from shared server addresses —
+exactly what a hosting platform provides. It is retried with backoff, and if it
+refuses the app says so plainly rather than reporting "no results". If discovery
+comes back empty:
+
+1. Deploy `infrastructure/searxng/render-searxng.yaml` as a second Render
+   service (the official image; nothing to build).
+2. In the API service set:
+
+   ```
+   SEARCH_PROVIDER = searxng
+   SEARXNG_URL     = https://<your-searxng-service>.onrender.com
+   ```
+
+Nothing else changes — search sits behind a provider interface, so the
+intelligence engine does not know the difference.
+
+---
+
 ## Connecting Gmail
 
 Optional — everything except draft creation works without it.
@@ -496,7 +582,11 @@ calls the send endpoint.
 - **Sending is never verified.** "Marked sent" is what a person recorded. Reading the Gmail
   sent folder would need a further scope, which this phase deliberately does not request.
 - **Single user.** There is no authentication, so `owner` and the audit `actor` come from the
-  sender profile rather than a signed-in account.
+  sender profile rather than a signed-in account. **Do not put a public deployment on the open
+  internet with real data in it** — anyone with the URL can read and change everything.
+- **One instance only.** Background jobs run in the web process and are coordinated in memory,
+  so running two or more instances would let the same run start twice. Keep the service at one
+  instance until the job queue moves to a broker.
 
 ---
 

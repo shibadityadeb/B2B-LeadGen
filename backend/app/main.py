@@ -20,8 +20,10 @@ from app.api.routes import (
     targets,
 )
 from app.core.config import settings
+from app.core.db import SessionFactory
 from app.core.errors import AppError
 from app.core.logging import configure_logging, get_logger
+from app.services.run_recovery import recover_interrupted_runs
 from app.workers import jobs  # noqa: F401  (registers job handlers)
 from app.workers.queue import shutdown_job_queue
 
@@ -32,6 +34,17 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     configure_logging()
     logger.info("starting %s (%s)", settings.app_name, settings.environment)
+
+    # Background work runs in this process, so a restart or a deploy can kill
+    # a run mid-flight. Settle those before serving, or the UI waits forever.
+    try:
+        async with SessionFactory() as session:
+            await recover_interrupted_runs(session)
+    except Exception:
+        # A database that is not reachable yet must not stop the app booting;
+        # the status endpoint will report it.
+        logger.exception("could not check for interrupted runs on startup")
+
     yield
     await shutdown_job_queue()
     logger.info("shutdown complete")

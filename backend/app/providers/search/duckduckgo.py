@@ -11,6 +11,8 @@ or above. Switch to `SEARCH_PROVIDER=searxng` for broader coverage.
 
 from __future__ import annotations
 
+import asyncio
+import random
 from datetime import UTC, datetime
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -40,10 +42,41 @@ _HEADERS = {
 class DuckDuckGoSearchProvider(SearchProvider):
     name = "duckduckgo"
 
+    #: The endpoint throttles bursts, so a refused query is retried a couple
+    #: of times with growing, jittered gaps before giving up.
+    MAX_ATTEMPTS = 3
+    BASE_BACKOFF_SECONDS = 4.0
+
     def __init__(self, timeout: float | None = None):
         self.timeout = timeout or settings.search_timeout_seconds
 
     async def search(self, query: str, *, limit: int = 20) -> list[SearchResultItem]:
+        last_error: ProviderError | None = None
+
+        for attempt in range(1, self.MAX_ATTEMPTS + 1):
+            try:
+                body = await self._fetch(query)
+            except ProviderError as exc:
+                last_error = exc
+                # Only a throttle is worth waiting out; a hard error is not.
+                if not exc.details.get("retryable") or attempt == self.MAX_ATTEMPTS:
+                    raise
+                # Jitter so parallel runs do not retry in lockstep.
+                delay = self.BASE_BACKOFF_SECONDS * attempt + random.uniform(0, 2)
+                logger.info(
+                    "duckduckgo throttled (attempt %s/%s); waiting %.1fs",
+                    attempt, self.MAX_ATTEMPTS, delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            return self._parse(body, limit=limit)
+
+        raise last_error or ProviderError(
+            "DuckDuckGo did not return results.", details={"provider": self.name}
+        )
+
+    async def _fetch(self, query: str) -> str:
         try:
             async with httpx.AsyncClient(
                 timeout=self.timeout, follow_redirects=True, headers=_HEADERS
@@ -56,10 +89,8 @@ class DuckDuckGoSearchProvider(SearchProvider):
 
         if response.status_code == 429:
             raise ProviderError(
-                "DuckDuckGo is rate limiting this client. Increase "
-                "SEARCH_DELAY_SECONDS, or switch to a self-hosted SearXNG "
-                "instance (SEARCH_PROVIDER=searxng).",
-                details={"provider": self.name},
+                "DuckDuckGo is rate limiting this server.",
+                details={"provider": self.name, "retryable": True},
             )
         if response.status_code >= 400:
             raise ProviderError(
@@ -69,17 +100,17 @@ class DuckDuckGoSearchProvider(SearchProvider):
 
         body = response.text
         if _is_bot_challenge(body):
-            # A challenge page arrives as HTTP 200/202 with no results. Treat it
-            # as the failure it is rather than reporting "0 results found".
+            # A challenge page arrives as HTTP 200/202 with no results. Treat
+            # it as the failure it is rather than reporting "0 results found".
             raise ProviderError(
-                "DuckDuckGo served a bot-detection page instead of results. "
-                "This endpoint throttles repeated automated queries; run a "
-                "self-hosted SearXNG instance (SEARCH_PROVIDER=searxng) for "
-                "reliable discovery.",
-                details={"provider": self.name},
+                "DuckDuckGo is serving a bot-check page instead of results. It "
+                "limits automated searching from shared server addresses. For "
+                "dependable results, run a SearXNG instance and set "
+                "SEARCH_PROVIDER=searxng with SEARXNG_URL.",
+                details={"provider": self.name, "retryable": True, "needs_searxng": True},
             )
 
-        return self._parse(body, limit=limit)
+        return body
 
     def _parse(self, html: str, *, limit: int) -> list[SearchResultItem]:
         soup = BeautifulSoup(html, "lxml")

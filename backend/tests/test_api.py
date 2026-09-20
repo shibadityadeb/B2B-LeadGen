@@ -215,3 +215,112 @@ def test_an_explicit_non_asyncpg_driver_is_respected():
 
     url = "postgresql+psycopg://user:pw@host/db?sslmode=require"
     assert normalize_database_url(url) == url
+
+
+# --------------------------------------------------------------------------- #
+# recovery after a restart
+# --------------------------------------------------------------------------- #
+
+
+async def test_runs_interrupted_by_a_restart_are_settled(session):
+    """Background work lives in the web process, so a deploy kills it. A run
+    left 'running' would spin in the UI forever."""
+    from app.models import Company, DiscoveryRun, ResearchRun, Target
+    from app.models.enums import CompanyStatus, ResearchStatus, RunStatus
+    from app.services.run_recovery import recover_interrupted_runs
+
+    target = Target(name="t", industry="i", keywords=[])
+    session.add(target)
+    company = Company(
+        name="Acme", canonical_domain="acme.test", website_url="https://acme.test",
+        status=CompanyStatus.RESEARCHING,
+    )
+    session.add(company)
+    await session.commit()
+
+    session.add(DiscoveryRun(target_id=target.id, status=RunStatus.RUNNING, errors=[]))
+    session.add(ResearchRun(company_id=company.id, status=ResearchStatus.RESEARCHING, errors=[]))
+    await session.commit()
+
+    recovered = await recover_interrupted_runs(session)
+    assert recovered["discovery_runs"] == 1
+    assert recovered["research_runs"] == 1
+
+    from sqlalchemy import select as _select
+
+    discovery = (await session.scalars(_select(DiscoveryRun))).one()
+    research = (await session.scalars(_select(ResearchRun))).one()
+    assert discovery.status == RunStatus.FAILED
+    assert research.status == ResearchStatus.FAILED
+    # The message tells the user what to do, rather than blaming them.
+    assert "run it again" in (research.error_message or "").lower()
+
+    await session.refresh(company)
+    assert company.status != CompanyStatus.RESEARCHING
+
+
+async def test_recovery_keeps_an_earlier_successful_result(session):
+    from datetime import UTC, datetime
+
+    from app.models import Company
+    from app.models.enums import CompanyStatus
+    from app.services.run_recovery import recover_interrupted_runs
+
+    company = Company(
+        name="Acme", canonical_domain="acme2.test", website_url="https://acme2.test",
+        status=CompanyStatus.RESEARCHING, last_researched_at=datetime.now(UTC),
+    )
+    session.add(company)
+    await session.commit()
+
+    await recover_interrupted_runs(session)
+    await session.refresh(company)
+    # It was researched before; that result still stands.
+    assert company.status == CompanyStatus.RESEARCHED
+
+
+async def test_recovery_leaves_finished_runs_alone(session):
+    from app.models import Target
+    from app.models.enums import RunStatus
+    from app.models import DiscoveryRun
+    from app.services.run_recovery import recover_interrupted_runs
+
+    target = Target(name="t", industry="i", keywords=[])
+    session.add(target)
+    await session.commit()
+    session.add(DiscoveryRun(target_id=target.id, status=RunStatus.COMPLETED, errors=[]))
+    await session.commit()
+
+    recovered = await recover_interrupted_runs(session)
+    assert recovered["discovery_runs"] == 0
+
+
+async def test_duckduckgo_retries_a_throttle_then_reports_it_clearly():
+    """The fallback search engine throttles shared server addresses. It must
+    back off, then say plainly what to do — not report zero results."""
+    import httpx
+
+    from app.core.errors import ProviderError
+    from app.providers.search.duckduckgo import DuckDuckGoSearchProvider
+
+    provider = DuckDuckGoSearchProvider()
+    provider.BASE_BACKOFF_SECONDS = 0  # keep the test fast
+    attempts = {"n": 0}
+
+    async def challenge(self, *args, **kwargs):
+        attempts["n"] += 1
+        request = httpx.Request("POST", "https://html.duckduckgo.com/html/")
+        return httpx.Response(
+            202, text="<html>anomaly detected, please solve this challenge</html>",
+            request=request,
+        )
+
+    import pytest
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(httpx.AsyncClient, "post", challenge)
+        with pytest.raises(ProviderError) as exc:
+            await provider.search("jewellery companies indore")
+
+    assert attempts["n"] == provider.MAX_ATTEMPTS, "a throttle should be retried"
+    assert "searxng" in str(exc.value).lower(), "the message must say how to fix it"

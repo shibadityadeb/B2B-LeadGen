@@ -1,0 +1,67 @@
+# Render Blueprint for the UBM Growth Opportunity Engine backend.
+#
+#   Render dashboard → New → Blueprint → point at this repository.
+#
+# The frontend deploys separately on Vercel (see README → Deploying).
+#
+# Values marked `sync: false` are NOT stored here: Render prompts for them on
+# first deploy and keeps them in its own encrypted store. Never commit a
+# database URL, a Google client secret or any token to this file.
+
+services:
+  - type: web
+    name: ubm-api
+    runtime: python
+    plan: free # note: free instances sleep after 15 minutes — see README
+    rootDir: backend
+    region: singapore # keep the API near the Neon database
+    healthCheckPath: /api/health
+
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    # Migrations run as part of start-up rather than as a pre-deploy step,
+    # because pre-deploy commands are not available on Render's free plan.
+    # `alembic upgrade head` is a no-op once the database is current.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+
+      # --- secrets: entered in the Render dashboard, never in git ---
+      - key: DATABASE_URL
+        sync: false # Neon connection string, pasted exactly as Neon gives it
+      - key: CORS_ORIGINS
+        sync: false # your Vercel URL, e.g. https://ubm-growth.vercel.app
+      - key: FRONTEND_URL
+        sync: false # the same Vercel URL
+
+      # --- search ---
+      # DuckDuckGo needs no service of its own, but it throttles automated
+      # searching from shared server addresses. If discovery comes back empty,
+      # deploy SearXNG and set SEARCH_PROVIDER=searxng plus SEARXNG_URL.
+      - key: SEARCH_PROVIDER
+        value: duckduckgo
+      - key: SEARCH_MAX_QUERIES_PER_RUN
+        value: "6" # fewer, slower queries are less likely to be refused
+      - key: SEARCH_DELAY_SECONDS
+        value: "3"
+      - key: RESEARCH_MAX_SEARCH_QUERIES
+        value: "4"
+
+      # --- crawling: stay polite from a shared address ---
+      - key: CRAWL_DELAY_SECONDS
+        value: "1.5"
+      - key: RESEARCH_MAX_PAGES_TO_CRAWL
+        value: "10"
+
+      # --- Gmail (optional; leave unset until you configure OAuth) ---
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false # https://<your-render-service>.onrender.com/api/gmail/callback
