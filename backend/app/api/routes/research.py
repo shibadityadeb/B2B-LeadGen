@@ -166,6 +166,9 @@ async def get_company_research(company_id: int, session: SessionDep):
     # Counts must match what each tab actually renders, so retired items are
     # excluded here exactly as they are in the endpoints above.
     all_evidence = await EvidenceRepository(session).list_for_company(company_id)
+    live_evidence_ids = {
+        e.id for e in all_evidence if e.observation_state != ObservationState.NOT_FOUND
+    }
     live_signals = [
         s
         for s in await SignalRepository(session).list_for_company(company_id)
@@ -189,7 +192,12 @@ async def get_company_research(company_id: int, session: SessionDep):
         "signals": len(live_signals),
         "opportunities": len(live_opportunities),
         "decision_makers": len(await DecisionMakerRepository(session).list_for_company(company_id)),
-        "contradictions": len(await ContradictionRepository(session).list_for_company(company_id)),
+        "contradictions": sum(
+            1
+            for conflict in await ContradictionRepository(session).list_for_company(company_id)
+            if conflict.evidence_a_id in live_evidence_ids
+            and conflict.evidence_b_id in live_evidence_ids
+        ),
         "runs": len(history),
     }
 
@@ -265,9 +273,29 @@ async def get_company_research_sources(company_id: int, session: SessionDep):
 
 
 @router.get("/companies/{company_id}/contradictions", response_model=list[ContradictionRead])
-async def get_company_contradictions(company_id: int, session: SessionDep):
+async def get_company_contradictions(
+    company_id: int, session: SessionDep, include_retired: bool = False
+):
+    """Conflicts between sources that are *both* still visible.
+
+    A disagreement whose other side has since disappeared is no longer a
+    disagreement — continuing to show it would send the reader looking for a
+    conflict that no longer exists.
+    """
     await _require_company(session, company_id)
-    return await ContradictionRepository(session).list_for_company(company_id)
+    conflicts = await ContradictionRepository(session).list_for_company(company_id)
+    if include_retired:
+        return conflicts
+
+    evidence = await EvidenceRepository(session).list_for_company(company_id)
+    live_ids = {
+        item.id for item in evidence if item.observation_state != ObservationState.NOT_FOUND
+    }
+    return [
+        conflict
+        for conflict in conflicts
+        if conflict.evidence_a_id in live_ids and conflict.evidence_b_id in live_ids
+    ]
 
 
 @router.get("/companies/{company_id}/brief", response_model=ResearchBriefRead)

@@ -38,6 +38,8 @@ interface BriefProfile {
     website?: string;
     description?: string | null;
     identity_facts?: Record<string, { value: unknown; source_url?: string | null }>;
+    /** Verbatim sentences from the company's own pages. */
+    about?: { text: string; source_url: string; source_title?: string | null }[];
   };
   recent_activity?: BriefEvidence[];
   all_signals?: {

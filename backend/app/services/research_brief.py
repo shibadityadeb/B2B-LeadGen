@@ -12,7 +12,12 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Company, ResearchRun
-from app.models.enums import EvidenceType, ObservationState, RetrievalStatus
+from app.models.enums import (
+    EvidenceType,
+    ObservationState,
+    RetrievalStatus,
+    SourceReliability,
+)
 from app.repositories.research import (
     ContradictionRepository,
     DecisionMakerRepository,
@@ -22,6 +27,8 @@ from app.repositories.research import (
     SignalRepository,
 )
 from app.services import freshness as freshness_service
+from app.services.about_summary import build_about
+from app.services.personalization import company_tokens
 
 # Which signal groups feed which section of the profile.
 _PROFILE_SECTIONS: dict[str, tuple[str, ...]] = {
@@ -107,6 +114,17 @@ async def build_profile(session: AsyncSession, company: Company, run: ResearchRu
                 "source_url": item.source.url if item.source else None,
             }
 
+    # A short description of the business, in the company's own words, taken
+    # only from pages they published themselves.
+    own_pages = [
+        (source.url, source.title, source.content)
+        for source in sources
+        if source.content and source.source_reliability == SourceReliability.FIRST_PARTY
+    ]
+    about_lines = build_about(
+        own_pages, company_name=company.name, tokens=company_tokens(company)
+    )
+
     signal_dicts = [_signal_dict(signal) for signal in signals]
     by_type = {signal["type"]: signal for signal in signal_dicts}
 
@@ -152,6 +170,8 @@ async def build_profile(session: AsyncSession, company: Company, run: ResearchRu
             "domain": company.canonical_domain,
             "description": company.description,
             "identity_facts": identity,
+            # Verbatim sentences from their own site describing what they do.
+            "about": [line.dict() for line in about_lines],
         },
         "recent_activity": [_evidence_dict(item, now=now) for item in recent],
         "growth_signals": [by_type[t] for t in _PROFILE_SECTIONS["growth_signals"] if t in by_type],
@@ -245,10 +265,16 @@ def render_brief(profile: dict) -> str:
 
     # --- about ---
     lines.append("## About the company")
-    if company.get("description"):
+    about = company.get("about") or []
+    if about:
+        for line in about:
+            lines.append(f"> {line['text']}")
+            lines.append(f"  — {line['source_url']}")
+            lines.append("")
+    elif company.get("description"):
         lines.append(f"> {company['description']}")
     else:
-        lines.append("_No description was found on the retrieved pages._")
+        lines.append("_They do not describe themselves on the pages we read._")
     facts = company.get("identity_facts") or {}
     if facts:
         lines.append("")

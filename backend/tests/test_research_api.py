@@ -231,3 +231,52 @@ async def test_phase_1_endpoints_still_work(client):
     """Phase 2 must not have broken the discovery API."""
     for path in ("/api/targets", "/api/companies", "/api/dashboard", "/api/status"):
         assert (await client.get(path)).status_code == 200, path
+
+
+async def test_a_conflict_is_hidden_once_one_side_disappears(client, session):
+    """A disagreement whose other side is gone is no longer a disagreement."""
+    from app.models import Contradiction
+    from app.models.enums import ObservationState
+    from tests.factories_phase2 import make_company, make_evidence, make_source
+
+    company = await make_company(session)
+    source_a = await make_source(session, company.id, url="https://a.test/x")
+    source_b = await make_source(session, company.id, url="https://b.test/y")
+    first = await make_evidence(
+        session, company.id, source_a.id, claim="a",
+        evidence_type="company_identity",
+        normalized_value={"attribute": "founded_year", "value": 1920},
+    )
+    second = await make_evidence(
+        session, company.id, source_b.id, claim="b",
+        evidence_type="company_identity",
+        normalized_value={"attribute": "founded_year", "value": 1978},
+    )
+    session.add(
+        Contradiction(
+            company_id=company.id,
+            subject="founded_year",
+            evidence_a_id=first.id,
+            evidence_b_id=second.id,
+            status="unresolved",
+            explanation="Two sources disagree.",
+        )
+    )
+    await session.commit()
+
+    shown = (await client.get(f"/api/companies/{company.id}/contradictions")).json()
+    assert len(shown) == 1
+
+    # The 1978 claim turns out to have been about another company.
+    second.observation_state = ObservationState.NOT_FOUND
+    await session.commit()
+
+    shown = (await client.get(f"/api/companies/{company.id}/contradictions")).json()
+    assert shown == [], "a one-sided conflict must not be presented as a conflict"
+
+    kept = (
+        await client.get(
+            f"/api/companies/{company.id}/contradictions", params={"include_retired": True}
+        )
+    ).json()
+    assert len(kept) == 1, "the record itself is still kept"

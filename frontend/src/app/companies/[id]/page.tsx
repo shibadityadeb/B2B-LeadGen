@@ -23,7 +23,7 @@ import { EvidenceList } from "@/components/domain/evidence-list";
 import { OpportunityCard } from "@/components/domain/opportunity-card";
 import { PageHeader } from "@/components/domain/page-header";
 import { ResearchStatusBadge } from "@/components/domain/research-badges";
-import { CompanyStatusBadge, PageTypeBadge } from "@/components/domain/status";
+import { CompanyStatusBadge } from "@/components/domain/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,7 @@ import { Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { api, ApiError } from "@/lib/api";
 import { plain } from "@/lib/plain";
-import { formatDate, formatDateTime, formatNumber, humanize, truncate } from "@/lib/format";
+import { formatDate, formatDateTime, humanize, truncate } from "@/lib/format";
 import type { Evidence, Opportunity, Signal } from "@/lib/types";
 
 type TabValue =
@@ -220,6 +220,36 @@ function CompanyDetailContent() {
     </Button>
   );
 
+  // A company's own site can be read by the original page crawl or by a
+  // research run. The operator should not have to know which one ran, so the
+  // Overview draws on whichever actually produced something.
+  const briefCompany = (
+    research.data?.brief?.profile as { company?: Record<string, unknown> } | undefined
+  )?.company;
+  const identityFacts = Object.entries(
+    (briefCompany?.identity_facts as
+      | Record<string, { value: unknown; source_url?: string }>
+      | undefined) ?? {},
+  );
+  // Verbatim sentences from the company's own pages describing what they do.
+  const aboutLines =
+    (briefCompany?.about as
+      | { text: string; source_url: string; source_title?: string | null }[]
+      | undefined) ?? [];
+  const legacyFacts = company.data?.summary.facts ?? [];
+  const websiteDescription =
+    (briefCompany?.description as string | undefined) ?? company.data?.description ?? null;
+  const hasWebsiteInfo =
+    aboutLines.length > 0 ||
+    identityFacts.length > 0 ||
+    legacyFacts.length > 0 ||
+    Boolean(websiteDescription);
+
+  // Pages from the company's own domain, from either pass.
+  const ownSitePages = (sources.data ?? []).filter(
+    (source) => source.source_reliability === "first_party",
+  );
+
   const counts = research.data?.counts ?? {};
   const tabs = [
     { value: "overview", label: "Overview" },
@@ -352,26 +382,65 @@ function CompanyDetailContent() {
           <div className="space-y-5">
             <Card>
               <CardHeader>
-                <CardTitle>Website information</CardTitle>
-                <span className="text-xs text-subtle">Extracted, not generated</span>
+                <CardTitle>From their website</CardTitle>
+                <span className="text-xs text-subtle">
+                  Copied from their pages, not written by AI
+                </span>
               </CardHeader>
               <CardContent>
                 {!company.data ? (
                   <Skeleton className="h-20 w-full" />
-                ) : company.data.summary.facts.length > 0 ? (
+                ) : hasWebsiteInfo ? (
                   <>
-                    <ul className="space-y-1.5">
-                      {company.data.summary.facts.map((fact) => (
+                    {aboutLines.length > 0 ? (
+                      <ul className="space-y-3">
+                        {aboutLines.map((line) => (
+                          <li key={line.text}>
+                            <blockquote className="border-l-2 border-accent-border bg-surface-muted/50 px-3 py-2 text-sm leading-relaxed text-foreground">
+                              “{line.text}”
+                            </blockquote>
+                            <a
+                              href={line.source_url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="mt-1 inline-flex max-w-full items-center gap-1 text-xs text-accent hover:underline"
+                            >
+                              <span className="truncate">{truncate(line.source_url, 62)}</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <ul className={aboutLines.length > 0 ? "mt-4 space-y-1.5 border-t border-border pt-4" : "space-y-1.5"}>
+                      {identityFacts.map(([attribute, detail]) => (
+                        <li key={attribute} className="text-sm text-foreground">
+                          <span className="text-muted">{humanize(attribute)}:</span>{" "}
+                          {String(detail.value)}
+                          {detail.source_url ? (
+                            <a
+                              href={detail.source_url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="ml-2 text-xs text-accent hover:underline"
+                            >
+                              source
+                            </a>
+                          ) : null}
+                        </li>
+                      ))}
+                      {legacyFacts.map((fact) => (
                         <li key={fact} className="flex gap-2 text-sm text-foreground">
                           <span className="mt-1.5 size-1 shrink-0 rounded-full bg-subtle" />
                           {fact}
                         </li>
                       ))}
                     </ul>
-                    {company.data.description ? (
+                    {aboutLines.length === 0 && websiteDescription ? (
                       <p className="mt-4 border-t border-border pt-4 text-sm text-muted">
-                        <span className="font-medium text-foreground">From the homepage:</span>{" "}
-                        “{company.data.description}”
+                        <span className="font-medium text-foreground">
+                          How they describe themselves:
+                        </span>{" "}
+                        “{websiteDescription}”
                       </p>
                     ) : null}
                   </>
@@ -428,21 +497,20 @@ function CompanyDetailContent() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Pages read</CardTitle>
-                {company.data ? <Badge>{company.data.pages.length}</Badge> : null}
+                <CardTitle>Pages read on their site</CardTitle>
+                {ownSitePages.length > 0 ? <Badge>{ownSitePages.length}</Badge> : null}
               </CardHeader>
-              {company.data && company.data.pages.length > 0 ? (
+              {ownSitePages.length > 0 ? (
                 <TableWrap>
                   <Table className="min-w-[32rem]">
                     <thead>
                       <tr>
                         <Th>Page</Th>
-                        <Th>Type</Th>
-                        <Th className="text-right">Content</Th>
+                        <Th>Kind</Th>
                       </tr>
                     </thead>
                     <tbody>
-                      {company.data.pages.map((page) => (
+                      {ownSitePages.map((page) => (
                         <Tr key={page.id}>
                           <Td>
                             <a
@@ -453,14 +521,14 @@ function CompanyDetailContent() {
                             >
                               {page.title ?? page.url}
                             </a>
+                            <span className="block max-w-sm truncate text-xs text-subtle">
+                              {truncate(page.url, 58)}
+                            </span>
                           </Td>
                           <Td>
-                            <PageTypeBadge type={page.page_type} />
-                          </Td>
-                          <Td className="text-right tabular-nums text-muted">
-                            {page.content_length > 0
-                              ? `${formatNumber(page.content_length)} chars`
-                              : "—"}
+                            <Badge tone="neutral">
+                              {humanize(page.source_type.replace("company_", ""))}
+                            </Badge>
                           </Td>
                         </Tr>
                       ))}
@@ -468,7 +536,20 @@ function CompanyDetailContent() {
                   </Table>
                 </TableWrap>
               ) : (
-                <EmptyState icon={Globe} title="No pages read yet" />
+                <EmptyState
+                icon={Globe}
+                title={
+                  hasBeenResearched
+                    ? "We could not read their own website"
+                    : "Their website has not been read yet"
+                }
+                description={
+                  hasBeenResearched
+                    ? "Their site did not respond or blocked us. Other public pages about them are listed under Sources."
+                    : undefined
+                }
+                action={hasBeenResearched ? undefined : researchButton}
+              />
               )}
             </Card>
           </div>

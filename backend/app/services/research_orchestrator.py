@@ -906,6 +906,13 @@ class ResearchOrchestrator:
         await self._set_stage(run, ResearchStatus.ANALYZING, ResearchStage.WRITING_BRIEF, 94)
 
         profile = await build_profile(self.session, company, run)
+
+        # Give the company a one-line description if it has none, taken
+        # verbatim from its own site — the companies list shows this.
+        about = (profile.get("company") or {}).get("about") or []
+        if about and not company.description:
+            company.description = about[0]["text"][:500]
+
         await self.briefs.upsert(
             company_id=company.id,
             research_run_id=run.id,
