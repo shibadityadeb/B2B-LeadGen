@@ -1,0 +1,4 @@
+# Optional heavy crawler backend. Install only if you want browser-rendered crawling:
+#   pip install -r requirements-crawl4ai.txt && playwright install chromium
+# The application falls back to the built-in httpx crawler provider when this is absent.
+crawl4ai==0.4.247

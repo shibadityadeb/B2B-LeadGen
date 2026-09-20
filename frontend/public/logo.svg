@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Upshot Brand Media wordmark.
+  To use the original brand asset instead, replace this file (keep the name
+  `logo.svg`, or drop in `logo.png` and update <Brand> in app-shell.tsx).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 96" role="img" aria-label="Upshot Brand Media">
+  <title>Upshot Brand Media</title>
+  <!-- green 'u' block -->
+  <path d="M8 8h26v46a10 10 0 0 0 10 10h4V8h26v80H44A36 36 0 0 1 8 52Z" fill="#A6CE39"/>
+  <!-- wordmark -->
+  <g fill="#0B54A6">
+    <text x="18" y="66"
+          font-family="Geist, Inter, 'Helvetica Neue', Arial, sans-serif"
+          font-size="52" font-weight="700" letter-spacing="1">UPSH</text>
+    <!-- the O is drawn as a ring with a centred dot -->
+    <path d="M196 34a20 20 0 1 1 0 40 20 20 0 0 1 0-40Zm0 11a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z"/>
+    <circle cx="196" cy="54" r="4.5"/>
+    <text x="222" y="66"
+          font-family="Geist, Inter, 'Helvetica Neue', Arial, sans-serif"
+          font-size="52" font-weight="700" letter-spacing="1">T</text>
+    <text x="152" y="89"
+          font-family="Geist, Inter, 'Helvetica Neue', Arial, sans-serif"
+          font-size="15" font-weight="700" letter-spacing="4.2">BRAND MEDIA</text>
+  </g>
+</svg>

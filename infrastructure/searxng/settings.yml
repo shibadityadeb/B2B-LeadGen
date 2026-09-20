@@ -1,0 +1,57 @@
+# SearXNG configuration for the UBM Growth Opportunity Engine.
+#
+# Installed and run from source — no Docker. See install.sh / start.sh.
+#
+# The only non-default parts are:
+#   - `formats` includes `json`, which the backend's search provider requires
+#   - a conservative engine selection suited to company discovery
+#
+# See https://docs.searxng.org/admin/settings/ for the full reference.
+
+use_default_settings: true
+
+general:
+  instance_name: "UBM Research"
+  debug: false
+
+server:
+  # Overridden at start-up by the SEARXNG_SECRET environment variable.
+  secret_key: "change-me-in-env"
+  bind_address: "127.0.0.1"
+  port: 8888
+  # The backend is the only client and paces its own requests, so the
+  # per-IP limiter would only get in the way locally.
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "en"
+  formats:
+    - html
+    - json
+
+ui:
+  default_locale: en
+
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 20.0
+  pool_connections: 100
+  pool_maxsize: 20
+
+engines:
+  # Engines that tolerate automated querying without an API key.
+  - name: duckduckgo
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: startpage
+    disabled: false
+  - name: wikipedia
+    disabled: true
+  - name: google
+    disabled: true

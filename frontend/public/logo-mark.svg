@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Compact square mark: the green 'u' plus the target 'O', for favicons and
+     tight spaces. Replace with the original asset if you have a square lockup. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Upshot Brand Media">
+  <title>Upshot Brand Media</title>
+  <rect width="64" height="64" rx="14" fill="#0B54A6"/>
+  <path d="M14 14h9v22a5 5 0 0 0 5 5h2V14h9v36H28a14 14 0 0 1-14-14Z" fill="#A6CE39"/>
+  <path d="M44 28a9 9 0 1 1 0 18 9 9 0 0 1 0-18Zm0 5.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" fill="#ffffff"/>
+  <circle cx="44" cy="37" r="2" fill="#ffffff"/>
+</svg>
