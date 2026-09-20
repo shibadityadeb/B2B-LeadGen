@@ -15,8 +15,8 @@ export function DecisionMakerList({ people }: { people: DecisionMaker[] }) {
       <Card>
         <EmptyState
           icon={User}
-          title="No publicly listed people found"
-          description="Only people named on public company pages are recorded. Nothing is inferred, and no email address is ever derived from a name."
+          title="No names published"
+          description="We only record people the company names on its own public pages. We never guess a name, and never make up an email address."
         />
       </Card>
     );
@@ -25,8 +25,8 @@ export function DecisionMakerList({ people }: { people: DecisionMaker[] }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-subtle">
-        Only what is published on public pages. Where a role is listed without a name, the
-        name is left blank rather than guessed.
+        Only what the company publishes itself. Where a job title is listed without a name,
+        we leave the name blank rather than guessing.
       </p>
       {people.map((person) => (
         <Card key={person.id} className="p-5">
@@ -56,13 +56,13 @@ export function DecisionMakerList({ people }: { people: DecisionMaker[] }) {
               <a
                 href={`mailto:${person.email}`}
                 className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
-                title="Published on the page; not derived from the person's name."
+                title="This address is printed on the page. We never build one from a person's name."
               >
                 <Mail className="size-3.5" />
                 {person.email}
               </a>
             ) : (
-              <span className="text-xs text-subtle">No public email address found</span>
+              <span className="text-xs text-subtle">No email address published</span>
             )}
             <ConfidenceBadge level={person.confidence_level} />
           </div>

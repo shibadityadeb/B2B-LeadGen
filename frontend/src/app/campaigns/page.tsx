@@ -1,7 +1,6 @@
 "use client";
 
 import { Layers, Plus, X } from "lucide-react";
-import Link from "next/link";
 import * as React from "react";
 import useSWR from "swr";
 
@@ -11,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { EmptyState, ErrorState, InlineError, TableSkeleton } from "@/components/ui/states";
-import { Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
+import { RowLink, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, humanize } from "@/lib/format";
 import type { MessageLength, OutreachTone } from "@/lib/types";
@@ -185,12 +184,9 @@ export default function CampaignsPage() {
                 {campaigns.data.map((campaign) => (
                   <Tr key={campaign.id}>
                     <Td>
-                      <Link
-                        href={`/outreach?campaign_id=${campaign.id}`}
-                        className="font-medium text-foreground hover:text-accent"
-                      >
+                      <RowLink href={`/outreach?campaign_id=${campaign.id}`}>
                         {campaign.name}
-                      </Link>
+                      </RowLink>
                       {campaign.description ? (
                         <p className="mt-0.5 max-w-sm truncate text-xs text-subtle">
                           {campaign.description}

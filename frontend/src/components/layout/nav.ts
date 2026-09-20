@@ -17,11 +17,11 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/targets", label: "Targets", icon: Target },
+  { href: "/targets", label: "Who to look for", icon: Target },
   { href: "/companies", label: "Companies", icon: Building2 },
-  { href: "/runs", label: "Discovery Runs", icon: Radar },
-  { href: "/research", label: "Research", icon: Microscope },
-  { href: "/outreach", label: "Outreach", icon: Mail },
+  { href: "/runs", label: "Searches", icon: Radar },
+  { href: "/research", label: "Company checks", icon: Microscope },
+  { href: "/outreach", label: "Emails", icon: Mail },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

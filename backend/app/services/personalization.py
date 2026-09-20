@@ -345,3 +345,46 @@ def _conversation_angle(
         f"{lead.capitalize()} suggests a moment where {capability.name.lower()} could be "
         "worth a conversation."
     )
+
+
+# Words that identify a sector rather than a company, so they cannot be used
+# to decide whether a page is about *this* company.
+_NON_DISTINCTIVE = {
+    "the", "and", "for", "ltd", "limited", "pvt", "private", "inc", "llp", "co",
+    "company", "companies", "group", "india", "indian", "store", "stores",
+    "shop", "shops", "showroom", "showrooms", "jewellery", "jewelry", "jewellers",
+    "jewelers", "retail", "retailers", "services", "solutions", "brands", "brand",
+    "online", "official", "best", "top", "new",
+}
+
+
+def company_tokens(company: Company) -> list[str]:
+    """Lowercase tokens that identify this specific company.
+
+    Used to decide whether a third-party page is actually about it. Returns
+    the distinctive words of the name plus the registrable domain label — for
+    "Sanwerwala Jewellers" on sanwerwalajewellers.com that is
+    ``["sanwerwalajewellers", "sanwerwala"]``.
+
+    The company's own location is excluded: a discovery-derived name like
+    "BlueStone Jewellery Shops in Indore" would otherwise make "indore" an
+    identifier, matching every article about any business in that city.
+    """
+    place_words = {
+        word
+        for field in (company.location, company.country)
+        for word in re.split(r"[^a-z0-9]+", (field or "").lower())
+        if word
+    }
+
+    tokens: list[str] = []
+    for word in re.split(r"[^a-z0-9]+", (company.name or "").lower()):
+        if len(word) >= 4 and word not in _NON_DISTINCTIVE and word not in place_words:
+            tokens.append(word)
+
+    label = (company.canonical_domain or "").split(".", 1)[0].lower()
+    if len(label) >= 4 and label not in _NON_DISTINCTIVE:
+        tokens.append(label)
+
+    # Deduplicate, longest first so the most specific match is tried early.
+    return sorted(dict.fromkeys(tokens), key=len, reverse=True)

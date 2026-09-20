@@ -45,7 +45,7 @@ export function OpportunityCard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-wide text-subtle">
-              Potential opportunity
+              Possible opening
             </p>
             <h3 className="mt-0.5 text-base font-semibold text-foreground">
               {opportunity.title}
@@ -66,15 +66,15 @@ export function OpportunityCard({
 
         <div className="mt-4">
           <p className="text-xs font-medium uppercase tracking-wide text-subtle">
-            Why this may be relevant
+            Why we think so
           </p>
           <p className="mt-1 text-sm leading-relaxed text-muted">{opportunity.why_relevant}</p>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-1.5">
           <Badge tone="neutral">
-            {opportunity.evidence_count}{" "}
-            {opportunity.evidence_count === 1 ? "evidence item" : "evidence items"}
+            Based on {opportunity.evidence_count}{" "}
+            {opportunity.evidence_count === 1 ? "finding" : "findings"}
           </Badge>
           <FreshnessBadge freshness={opportunity.freshness} />
           <ConfidenceBadge
@@ -90,7 +90,7 @@ export function OpportunityCard({
             onClick={() => onViewEvidence(opportunity)}
             disabled={opportunity.evidence_count === 0}
           >
-            View evidence <ChevronRight />
+            Show me why <ChevronRight />
           </Button>
           {onCreateOutreach && !dismissed ? (
             <Button
@@ -99,11 +99,11 @@ export function OpportunityCard({
               loading={outreachBusy}
               title={
                 existingOutreachId
-                  ? "Open the outreach already prepared for this opportunity"
-                  : "Prepare a message for review. Nothing is sent."
+                  ? "Open the email already prepared for this"
+                  : "Write a draft email about this. Nothing is sent."
               }
             >
-              <Mail /> {existingOutreachId ? "Open outreach" : "Create outreach"}
+              <Mail /> {existingOutreachId ? "Open email" : "Write email"}
             </Button>
           ) : null}
           {dismissed

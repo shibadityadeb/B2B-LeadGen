@@ -18,7 +18,7 @@ import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { CardsSkeleton, EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
-import { Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
+import { RowLink, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { formatDate, formatNumber } from "@/lib/format";
 import type { OutcomeStatus, OutreachStatus, ValidationResult } from "@/lib/types";
@@ -216,17 +216,17 @@ export default function OutreachWorkspacePage() {
                     return (
                       <Tr key={item.id}>
                         <Td>
-                          <Link
+                          <RowLink
                             href={`/outreach/${item.id}`}
                             className="group block min-w-0 max-w-[14rem]"
                           >
-                            <span className="block truncate font-medium text-foreground group-hover:text-accent">
+                            <span className="block truncate group-hover:text-accent">
                               {item.company_name}
                             </span>
-                            <span className="block truncate font-mono text-xs text-subtle">
+                            <span className="block truncate font-mono text-xs font-normal text-subtle">
                               {item.company_domain}
                             </span>
-                          </Link>
+                          </RowLink>
                         </Td>
                         <Td>
                           <span className="block max-w-[12rem] truncate text-sm text-foreground">

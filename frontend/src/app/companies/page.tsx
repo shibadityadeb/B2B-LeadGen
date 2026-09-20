@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Input, Select } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
-import { Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
+import { RowLink, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { InlineError } from "@/components/ui/states";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, humanize } from "@/lib/format";
@@ -323,20 +323,20 @@ function CompaniesContent() {
                         <input
                           type="checkbox"
                           aria-label={`Select ${company.name}`}
-                          className="size-4 cursor-pointer accent-[var(--accent)]"
+                          className="relative z-10 size-4 cursor-pointer accent-[var(--accent)]"
                           checked={selected.has(company.id)}
                           onChange={() => toggle(company.id)}
                         />
                       </Td>
                       <Td>
-                        <Link href={`/companies/${company.id}`} className="group block min-w-0">
-                          <span className="block truncate font-medium text-foreground group-hover:text-accent">
+                        <RowLink href={`/companies/${company.id}`} className="group block min-w-0">
+                          <span className="block truncate group-hover:text-accent">
                             {company.name}
                           </span>
-                          <span className="block truncate font-mono text-xs text-subtle">
+                          <span className="block truncate font-mono text-xs font-normal text-subtle">
                             {company.canonical_domain}
                           </span>
-                        </Link>
+                        </RowLink>
                       </Td>
                       <Td className="text-muted">{company.industry ?? "—"}</Td>
                       <Td className="text-muted">{company.location ?? "—"}</Td>

@@ -239,6 +239,9 @@ class ResearchRunRead(BaseModel):
 class ResearchRunDetail(ResearchRunRead):
     sources: list[ResearchSourceRead] = []
     brief_markdown: str | None = None
+    #: The structured profile the markdown was rendered from. The UI renders
+    #: this rather than parsing the markdown back out again.
+    brief_profile: dict | None = None
 
 
 class ResearchBriefRead(BaseModel):

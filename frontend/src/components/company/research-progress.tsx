@@ -9,19 +9,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatDuration } from "@/lib/format";
 import type { ResearchRun } from "@/lib/types";
 
-/** Stage labels mirror ResearchStage on the backend — real state, not theatre. */
+/**
+ * What the system is doing, in words the operator will understand. These
+ * mirror the real backend stages — the wording is plain, the progress is not
+ * decorative.
+ */
 const STAGE_LABELS: Record<string, string> = {
-  pending: "Queued",
-  loading_company: "Loading company…",
-  collecting_pages: "Collecting pages already crawled…",
-  discovering_sources: "Searching for public sources…",
-  crawling_sources: "Retrieving sources…",
-  extracting_evidence: "Extracting evidence…",
-  deriving_signals: "Deriving business signals…",
-  finding_people: "Looking for publicly listed people…",
-  matching_capabilities: "Matching UBM capabilities…",
-  writing_brief: "Writing the research brief…",
-  done: "Completed",
+  pending: "Getting ready…",
+  loading_company: "Getting ready…",
+  collecting_pages: "Gathering pages we already had…",
+  discovering_sources: "Searching the web for mentions…",
+  crawling_sources: "Reading the pages we found…",
+  extracting_evidence: "Picking out what matters…",
+  deriving_signals: "Working out what they're up to…",
+  finding_people: "Looking for named contacts…",
+  matching_capabilities: "Checking where UBM could fit…",
+  writing_brief: "Writing the summary…",
+  done: "Finished",
 };
 
 export function ResearchProgress({
@@ -41,14 +45,14 @@ export function ResearchProgress({
       <Card className="border-danger/30 bg-danger-soft">
         <CardContent>
           <p className="flex items-center gap-2 text-sm font-medium text-danger">
-            <AlertTriangle className="size-4" /> Research failed
+            <AlertTriangle className="size-4" /> We could not finish this check
           </p>
           <p className="mt-1.5 text-sm text-danger/90">
             {run.error_message ?? "No further detail was recorded."}
           </p>
           {onRetry ? (
             <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry} loading={retrying}>
-              Retry research
+              Try again
             </Button>
           ) : null}
         </CardContent>
@@ -57,20 +61,26 @@ export function ResearchProgress({
   }
 
   if (!active) {
+    // A sentence, not a row of counters: the operator wants to know what
+    // came of it, not how the pipeline is instrumented.
     return (
       <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3">
-          <p className="flex items-center gap-2 text-sm text-success">
-            <CheckCircle2 className="size-4" />
-            Research completed in {formatDuration(run.started_at, run.completed_at)}
+        <CardContent>
+          <p className="flex items-start gap-2 text-sm text-foreground">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+            <span>
+              We read <strong>{run.sources_retrieved}</strong>{" "}
+              {run.sources_retrieved === 1 ? "page" : "pages"} and found{" "}
+              <strong>{run.evidence_count}</strong>{" "}
+              {run.evidence_count === 1 ? "thing" : "things"} worth noting, pointing to{" "}
+              <strong>{run.opportunities_count}</strong>{" "}
+              {run.opportunities_count === 1 ? "possible opening" : "possible openings"}.
+            </span>
           </p>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-            <span>{run.sources_retrieved} sources</span>
-            <span>{run.evidence_count} evidence</span>
-            <span>{run.signals_count} signals</span>
-            <span>{run.opportunities_count} opportunities</span>
-            {run.llm_used ? <span>LLM-assisted</span> : <span>deterministic</span>}
-          </div>
+          <p className="mt-1 pl-6 text-xs text-subtle">
+            Checked {formatDuration(run.started_at, run.completed_at)} ago in real time
+            {run.llm_used ? " · AI helped read the pages" : ""}
+          </p>
         </CardContent>
       </Card>
     );
@@ -87,14 +97,10 @@ export function ResearchProgress({
           <ResearchStatusBadge status={run.status} />
         </div>
         <ProgressBar value={run.progress} />
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-          <span>
-            {run.sources_retrieved}/{run.sources_discovered} sources retrieved
-          </span>
-          <span>{run.evidence_count} evidence</span>
-          <span>{run.signals_count} signals</span>
-          <span>{run.opportunities_count} opportunities</span>
-        </div>
+        <p className="text-xs text-muted">
+          {run.sources_retrieved} of {run.sources_discovered} pages read so far ·{" "}
+          {run.evidence_count} {run.evidence_count === 1 ? "thing" : "things"} found
+        </p>
       </CardContent>
     </Card>
   );

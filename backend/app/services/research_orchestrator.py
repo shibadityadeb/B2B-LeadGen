@@ -48,6 +48,7 @@ from app.models.enums import (
     CompanyStatus,
     EvidenceType,
     ObservationState,
+    OpportunityStatus,
     PageType,
     ResearchSourceType,
     ResearchStage,
@@ -88,6 +89,7 @@ from app.services.fingerprints import (
     signal_fingerprint,
 )
 from app.services.normalization import extract_domain, normalize_url, root_url
+from app.services.personalization import company_tokens
 from app.services.page_classifier import classify_page
 from app.services.research_brief import build_profile, render_brief
 from app.services.robots import RobotsPolicy
@@ -228,7 +230,14 @@ class ResearchOrchestrator:
             sources = await self.sources.list_for_company(company.id)
             await self._stage_extract_evidence(run, company, sources)
 
-            evidence_items = await self.evidence.list_for_company(company.id)
+            # Evidence we can no longer find must not go on driving
+            # conclusions: a signal built on discredited observations would
+            # outlive the observations themselves.
+            evidence_items = [
+                item
+                for item in await self.evidence.list_for_company(company.id)
+                if item.observation_state != ObservationState.NOT_FOUND
+            ]
             await self._stage_contradictions(run, company, evidence_items)
             await self._stage_signals(run, company, evidence_items)
             await self._stage_people(run, company, sources)
@@ -496,16 +505,48 @@ class ResearchOrchestrator:
         ]
 
         # --- deterministic layer (always runs) ---
+        # A trade article covers many companies, and page furniture ("Earn by
+        # hosting sponsored links") belongs to none. On anything that is not
+        # the company's own site, only sentences naming the company may
+        # support a claim about it — otherwise a competitor's store opening
+        # would be recorded as this company's.
+        tokens = company_tokens(company)
         candidates: list[tuple[ResearchSource, evidence_extraction.ExtractedEvidence]] = []
+        skipped_off_topic = 0
+
         for source in usable:
+            first_party = source.source_reliability == SourceReliability.FIRST_PARTY
+            required = None if first_party else tokens
+
+            if required and not evidence_extraction.mentions_company(source.content, required):
+                # The page never names the company; nothing on it is evidence.
+                skipped_off_topic += 1
+                continue
+
             items = evidence_extraction.extract_from_text(
-                source.content, company_name=company.name
+                source.content, company_name=company.name, require_tokens=required
             )
             items += evidence_extraction.extract_identity(
-                source.content, company_name=company.name
+                source.content, company_name=company.name, require_tokens=required
             )
             for item in evidence_extraction.deduplicate(items):
                 candidates.append((source, item))
+
+        if skipped_off_topic:
+            run.errors = [
+                *(run.errors or []),
+                {
+                    "stage": "extraction",
+                    "message": (
+                        f"{skipped_off_topic} retrieved page(s) never named "
+                        f"{company.name}, so no claims were taken from them."
+                    ),
+                },
+            ]
+            logger.info(
+                "run %s skipped %s off-topic sources for company=%s",
+                run.id, skipped_off_topic, company.id,
+            )
 
         # --- optional model layer (adds only verifiable claims) ---
         if self.llm.enabled and usable:
@@ -665,6 +706,14 @@ class ResearchOrchestrator:
             contradicted_evidence_ids=getattr(self, "_contradicted_ids", set()),
         )
 
+        # Retire signals whose evidence no longer stands.
+        live_types = {item.signal_type for item in derived}
+        for existing in await self.signals.list_for_company(company.id):
+            if existing.signal_type not in live_types:
+                existing.observation_state = ObservationState.NOT_FOUND
+                existing.evidence_count = 0
+                existing.strength = 0.0
+
         for item in derived:
             fingerprint = signal_fingerprint(company.id, item.signal_type)
             row = await self.signals.by_fingerprint(company.id, fingerprint)
@@ -773,7 +822,11 @@ class ResearchOrchestrator:
             run, ResearchStatus.ANALYZING, ResearchStage.MATCHING_CAPABILITIES, 86
         )
 
-        stored_signals = await self.signals.list_for_company(company.id)
+        stored_signals = [
+            signal
+            for signal in await self.signals.list_for_company(company.id)
+            if signal.observation_state != ObservationState.NOT_FOUND
+        ]
         capabilities = await self.capabilities.list(active_only=True)
 
         derived = [
@@ -797,6 +850,15 @@ class ResearchOrchestrator:
         signal_ids_by_type = {signal.signal_type: signal.id for signal in stored_signals}
 
         matches = capability_matching.match(derived, capabilities, company_name=company.name)
+
+        # An opportunity whose supporting signals are gone is retired too,
+        # so the counts a reader sees stay consistent with the evidence.
+        matched_ids = {item.capability_id for item in matches}
+        for existing in await self.opportunities.list_for_company(company.id):
+            if existing.capability_id not in matched_ids and existing.status != "dismissed":
+                existing.observation_state = ObservationState.NOT_FOUND
+                existing.status = OpportunityStatus.UNCERTAIN
+                existing.evidence_count = 0
 
         for item in matches:
             fingerprint = opportunity_fingerprint(company.id, item.capability_id)

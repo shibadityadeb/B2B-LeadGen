@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/states";
 import { formatDate } from "@/lib/format";
+import { plain } from "@/lib/plain";
 import type { Signal } from "@/lib/types";
 
 export function SignalList({
@@ -20,8 +21,8 @@ export function SignalList({
     return (
       <Card>
         <EmptyState
-          title="No business signals yet"
-          description="Signals are grouped from evidence. Run research to collect evidence first."
+          title="Nothing noticeable yet"
+          description="Once the company has been researched, anything they appear to be doing shows up here."
         />
       </Card>
     );
@@ -33,25 +34,12 @@ export function SignalList({
         <Card key={signal.id} className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-foreground">{signal.title}</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                {plain.activity(signal.signal_type)}
+              </h3>
               <p className="mt-1 text-sm text-muted">{signal.description}</p>
             </div>
             <ObservationBadge state={signal.observation_state} />
-          </div>
-
-          <div className="mt-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-subtle">Strength</span>
-              <span className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-muted">
-                <span
-                  className="block h-full rounded-full bg-accent"
-                  style={{ width: `${Math.round(signal.strength * 100)}%` }}
-                />
-              </span>
-              <span className="text-xs tabular-nums text-muted">
-                {signal.strength.toFixed(2)}
-              </span>
-            </div>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -64,14 +52,16 @@ export function SignalList({
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-subtle">
-              {signal.evidence_count} evidence item(s) ·{" "}
-              {signal.confidence_components?.distinct_sources ?? 1} source(s)
+              Based on {signal.evidence_count}{" "}
+              {signal.evidence_count === 1 ? "thing we found" : "things we found"} across{" "}
+              {signal.confidence_components?.distinct_sources ?? 1}{" "}
+              {(signal.confidence_components?.distinct_sources ?? 1) === 1 ? "source" : "sources"}
               {signal.latest_evidence_at
-                ? ` · latest ${formatDate(signal.latest_evidence_at)}`
+                ? ` · most recent ${formatDate(signal.latest_evidence_at)}`
                 : ""}
             </p>
-            <Button variant="ghost" size="sm" onClick={() => onViewEvidence(signal)}>
-              View evidence <ChevronRight />
+            <Button variant="secondary" size="sm" onClick={() => onViewEvidence(signal)}>
+              Show me <ChevronRight />
             </Button>
           </div>
         </Card>

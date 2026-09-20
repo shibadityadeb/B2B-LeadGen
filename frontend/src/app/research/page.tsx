@@ -13,9 +13,9 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
-import { Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
+import { RowLink, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { formatDateTime, formatDuration } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -38,8 +38,8 @@ export default function ResearchRunsPage() {
   return (
     <>
       <PageHeader
-        title="Research runs"
-        description="Every company research run, with the evidence and hypotheses it produced."
+        title="Company checks"
+        description="Every time a company was researched, and what came out of it."
       />
 
       <Card>
@@ -50,8 +50,8 @@ export default function ResearchRunsPage() {
         ) : !data || data.items.length === 0 ? (
           <EmptyState
             icon={Microscope}
-            title="No research runs yet"
-            description="Open a company and run research to populate this list."
+            title="No companies checked yet"
+            description="Open a company and choose “Research company” to get started."
             action={
               <Link href="/companies" className={buttonVariants()}>
                 Go to companies
@@ -64,35 +64,23 @@ export default function ResearchRunsPage() {
               <Table className="min-w-[52rem]">
                 <thead>
                   <tr>
-                    <Th>Run</Th>
                     <Th>Company</Th>
-                    <Th>Status</Th>
-                    <Th>Started</Th>
-                    <Th>Duration</Th>
-                    <Th className="text-right">Evidence</Th>
-                    <Th className="text-right">Signals</Th>
-                    <Th className="text-right">Opportunities</Th>
+                    <Th>Result</Th>
+                    <Th>When</Th>
+                    <Th className="text-right">Things found</Th>
+                    <Th className="text-right">Possible openings</Th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.items.map((run) => (
                     <Tr key={run.id}>
                       <Td>
-                        <Link
-                          href={`/research/${run.id}`}
-                          className="font-medium text-foreground hover:text-accent"
-                        >
-                          #{run.id}
-                        </Link>
-                      </Td>
-                      <Td>
-                        <Link
-                          href={`/companies/${run.company_id}`}
-                          className="text-muted hover:text-accent"
-                        >
+                        <RowLink href={`/research/${run.id}`}>
                           {run.company_name ?? `Company ${run.company_id}`}
-                        </Link>
-                        <p className="font-mono text-xs text-subtle">{run.company_domain}</p>
+                        </RowLink>
+                        <p className="font-mono text-xs font-normal text-subtle">
+                          {run.company_domain}
+                        </p>
                       </Td>
                       <Td>
                         <ResearchStatusBadge status={run.status} />
@@ -103,18 +91,14 @@ export default function ResearchRunsPage() {
                       <Td className="whitespace-nowrap text-muted">
                         {formatDateTime(run.started_at ?? run.created_at)}
                       </Td>
-                      <Td className="whitespace-nowrap text-muted">
-                        {formatDuration(run.started_at, run.completed_at)}
-                      </Td>
                       <Td className="text-right tabular-nums text-muted">
                         {run.evidence_count}
                         {run.new_evidence_count > 0 ? (
                           <Badge tone="accent" className="ml-1.5">
-                            +{run.new_evidence_count}
+                            +{run.new_evidence_count} new
                           </Badge>
                         ) : null}
                       </Td>
-                      <Td className="text-right tabular-nums text-muted">{run.signals_count}</Td>
                       <Td className="text-right tabular-nums text-muted">
                         {run.opportunities_count}
                       </Td>

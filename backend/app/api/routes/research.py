@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query, status
 
 from app.api.deps import QueueDep, SessionDep
 from app.core.errors import NotFoundError, ValidationError
-from app.models.enums import CompanyStatus, ResearchStatus
+from app.models.enums import CompanyStatus, ObservationState, ResearchStatus
 from app.repositories.companies import CompanyRepository
 from app.repositories.research import (
     BriefRepository,
@@ -163,11 +163,31 @@ async def get_company_research(company_id: int, session: SessionDep):
         else None
     )
 
+    # Counts must match what each tab actually renders, so retired items are
+    # excluded here exactly as they are in the endpoints above.
+    all_evidence = await EvidenceRepository(session).list_for_company(company_id)
+    live_signals = [
+        s
+        for s in await SignalRepository(session).list_for_company(company_id)
+        if s.observation_state != ObservationState.NOT_FOUND
+    ]
+    live_opportunities = [
+        o
+        for o in await OpportunityRepository(session).list_for_company(company_id)
+        if o.observation_state != ObservationState.NOT_FOUND
+    ]
     counts = {
         "sources": await ResearchSourceRepository(session).count_for_company(company_id),
-        "evidence": len(await EvidenceRepository(session).list_for_company(company_id)),
-        "signals": len(await SignalRepository(session).list_for_company(company_id)),
-        "opportunities": len(await OpportunityRepository(session).list_for_company(company_id)),
+        # What the tab shows: items still visible on the web. The ones we can
+        # no longer find sit behind a disclosure inside the tab.
+        "evidence": sum(
+            1 for e in all_evidence if e.observation_state != ObservationState.NOT_FOUND
+        ),
+        "evidence_retired": sum(
+            1 for e in all_evidence if e.observation_state == ObservationState.NOT_FOUND
+        ),
+        "signals": len(live_signals),
+        "opportunities": len(live_opportunities),
         "decision_makers": len(await DecisionMakerRepository(session).list_for_company(company_id)),
         "contradictions": len(await ContradictionRepository(session).list_for_company(company_id)),
         "runs": len(history),
@@ -207,16 +227,27 @@ async def get_company_evidence(
 
 
 @router.get("/companies/{company_id}/signals", response_model=list[SignalRead])
-async def get_company_signals(company_id: int, session: SessionDep):
+async def get_company_signals(
+    company_id: int, session: SessionDep, include_retired: bool = False
+):
+    """Current signals. Ones whose evidence has since disappeared are kept in
+    the database but excluded unless explicitly requested."""
     await _require_company(session, company_id)
     signals = await SignalRepository(session).list_for_company(company_id)
+    if not include_retired:
+        signals = [s for s in signals if s.observation_state != ObservationState.NOT_FOUND]
     return [signal_to_schema(signal) for signal in signals]
 
 
 @router.get("/companies/{company_id}/opportunities", response_model=list[OpportunityRead])
-async def get_company_opportunities(company_id: int, session: SessionDep):
+async def get_company_opportunities(
+    company_id: int, session: SessionDep, include_retired: bool = False
+):
+    """Current opportunities, excluding any whose supporting signals are gone."""
     await _require_company(session, company_id)
     items = await OpportunityRepository(session).list_for_company(company_id)
+    if not include_retired:
+        items = [i for i in items if i.observation_state != ObservationState.NOT_FOUND]
     return [opportunity_to_schema(item) for item in items]
 
 
@@ -293,6 +324,7 @@ async def get_research_run(run_id: int, session: SessionDep):
         **run_to_schema(run).model_dump(),
         sources=[ResearchSourceRead.model_validate(source, from_attributes=True) for source in sources],
         brief_markdown=brief.markdown if brief else None,
+        brief_profile=brief.profile if brief else None,
     )
 
 

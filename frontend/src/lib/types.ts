@@ -391,6 +391,8 @@ export interface ResearchRun {
 export interface ResearchRunDetail extends ResearchRun {
   sources: ResearchSource[];
   brief_markdown: string | null;
+  /** The structured profile the markdown was rendered from. */
+  brief_profile: Record<string, unknown> | null;
 }
 
 export interface ResearchBrief {

@@ -420,3 +420,99 @@ async def test_people_are_only_taken_from_first_party_sources(session, company):
     names = {person.name for person in people}
     assert "Philippe Benacin" not in names
     assert "Gayatri Yadav" not in names
+
+
+async def test_claims_are_not_taken_from_pages_about_other_companies(session):
+    """A trade article covering a competitor must not become this company's
+    evidence — a non-technical reader cannot be expected to catch that."""
+    company = await make_company(session, name="Sanwerwala Jewellers",
+                                 canonical_domain="sanwerwalajewellers.test",
+                                 website_url="https://sanwerwalajewellers.test")
+    await _page(session, company.id, "https://sanwerwalajewellers.test/about",
+                "Sanwerwala Jewellers has served Indore families for decades.")
+
+    # A real trade article: it is about a different jeweller entirely.
+    competitor_news = (
+        "Regal Jewellers unveils its first showroom in Tamil Nadu this week. "
+        "The company launched a new bridal collection alongside the opening. "
+        "Earn by hosting sponsored links on your site."
+    )
+    orchestrator = _orchestrator(
+        session,
+        research_provider=FakeResearchProvider([candidate("https://trade-news.test/regal")]),
+        crawler=FakeCrawler({"https://trade-news.test/regal": competitor_news}),
+    )
+    run = await orchestrator.create_run(company)
+    result = await orchestrator.execute(run.id)
+
+    from sqlalchemy import select as _select
+
+    items = list(
+        await session.scalars(_select(Evidence).where(Evidence.company_id == company.id))
+    )
+    excerpts = " ".join(item.excerpt or "" for item in items)
+    assert "Regal Jewellers" not in excerpts
+    assert "sponsored links" not in excerpts
+    # The run says plainly that a page was ignored, rather than hiding it.
+    assert any(error.get("stage") == "extraction" for error in result.errors)
+
+
+async def test_a_third_party_page_that_does_name_the_company_is_used(session):
+    company = await make_company(session, name="Sanwerwala Jewellers",
+                                 canonical_domain="sanwerwalajewellers.test",
+                                 website_url="https://sanwerwalajewellers.test")
+    await _page(session, company.id, "https://sanwerwalajewellers.test/about", ABOUT_TEXT)
+
+    news = "Sanwerwala Jewellers opened two new showrooms in Bhopal this month."
+    orchestrator = _orchestrator(
+        session,
+        research_provider=FakeResearchProvider([candidate("https://news.test/sanwerwala")]),
+        crawler=FakeCrawler({"https://news.test/sanwerwala": news}),
+    )
+    run = await orchestrator.create_run(company)
+    await orchestrator.execute(run.id)
+
+    from sqlalchemy import select as _select
+
+    items = list(
+        await session.scalars(_select(Evidence).where(Evidence.company_id == company.id))
+    )
+    assert any("Sanwerwala Jewellers opened two new showrooms" in (i.excerpt or "") for i in items)
+
+
+async def test_signals_and_opportunities_retire_with_their_evidence(session):
+    """Counts shown to a reader must stay consistent: a signal cannot outlive
+    the observations it was built from."""
+    company = await make_company(session)
+    page = await _page(session, company.id, "https://acme-retail.test/news", NEWS_TEXT,
+                       page_type=PageType.NEWS)
+
+    first = _orchestrator(session)
+    run_one = await first.create_run(company)
+    result_one = await first.execute(run_one.id)
+    assert result_one.signals_count > 0
+    assert result_one.opportunities_count > 0
+
+    # The page no longer says any of it.
+    page.content = "Welcome to our website."
+    await session.commit()
+
+    second = _orchestrator(session)
+    run_two = await second.create_run(company)
+    result_two = await second.execute(run_two.id)
+
+    assert result_two.signals_count == 0, "signals must not outlive their evidence"
+    assert result_two.opportunities_count == 0
+
+    from sqlalchemy import select as _select
+
+    from app.models import Opportunity as _Opportunity
+    from app.models import Signal as _Signal
+
+    signals = list(await session.scalars(_select(_Signal)))
+    opportunities = list(await session.scalars(_select(_Opportunity)))
+    # Rows are kept for history, but flagged rather than presented as current.
+    assert signals and all(s.observation_state == ObservationState.NOT_FOUND for s in signals)
+    assert opportunities and all(
+        o.observation_state == ObservationState.NOT_FOUND for o in opportunities
+    )

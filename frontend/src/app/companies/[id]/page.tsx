@@ -16,6 +16,7 @@ import * as React from "react";
 import useSWR from "swr";
 
 import { DecisionMakerList } from "@/components/company/decision-maker-list";
+import { ResearchBriefView } from "@/components/company/research-brief-view";
 import { ResearchProgress } from "@/components/company/research-progress";
 import { SignalList } from "@/components/company/signal-list";
 import { EvidenceList } from "@/components/domain/evidence-list";
@@ -31,6 +32,7 @@ import { EmptyState, ErrorState, InlineError, Skeleton } from "@/components/ui/s
 import { Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { api, ApiError } from "@/lib/api";
+import { plain } from "@/lib/plain";
 import { formatDate, formatDateTime, formatNumber, humanize, truncate } from "@/lib/format";
 import type { Evidence, Opportunity, Signal } from "@/lib/types";
 
@@ -202,12 +204,12 @@ function CompanyDetailContent() {
   const counts = research.data?.counts ?? {};
   const tabs = [
     { value: "overview", label: "Overview" },
-    { value: "research", label: "Research", count: counts.evidence ?? 0 },
-    { value: "signals", label: "Signals", count: counts.signals ?? 0 },
+    { value: "research", label: "What we found", count: counts.evidence ?? 0 },
+    { value: "signals", label: "What they're doing", count: counts.signals ?? 0 },
     { value: "opportunities", label: "Opportunities", count: counts.opportunities ?? 0 },
-    { value: "people", label: "Decision makers", count: counts.decision_makers ?? 0 },
+    { value: "people", label: "People", count: counts.decision_makers ?? 0 },
     { value: "sources", label: "Sources", count: counts.sources ?? 0 },
-    { value: "history", label: "History", count: counts.runs ?? 0 },
+    { value: "history", label: "Past checks", count: counts.runs ?? 0 },
   ];
 
   return (
@@ -364,8 +366,8 @@ function CompanyDetailContent() {
                 ) : (
                   <EmptyState
                     icon={Globe}
-                    title="No website information yet"
-                    description="Run research to crawl the website and public sources."
+                    title="Nothing read from their website yet"
+                    description="Use “Research company” above to read their website and public pages."
                   />
                 )}
               </CardContent>
@@ -376,7 +378,7 @@ function CompanyDetailContent() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="size-4 text-warning" />
-                    Conflicting public information
+                    Sources disagree
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -395,7 +397,7 @@ function CompanyDetailContent() {
                           })
                         }
                       >
-                        Compare evidence
+                        See both
                       </Button>
                     </div>
                   ))}
@@ -405,7 +407,7 @@ function CompanyDetailContent() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Pages crawled</CardTitle>
+                <CardTitle>Pages read</CardTitle>
                 {company.data ? <Badge>{company.data.pages.length}</Badge> : null}
               </CardHeader>
               {company.data && company.data.pages.length > 0 ? (
@@ -445,7 +447,7 @@ function CompanyDetailContent() {
                   </Table>
                 </TableWrap>
               ) : (
-                <EmptyState icon={Globe} title="No pages crawled yet" />
+                <EmptyState icon={Globe} title="No pages read yet" />
               )}
             </Card>
           </div>
@@ -454,12 +456,12 @@ function CompanyDetailContent() {
 
       {/* ------------------------------------------------ research --- */}
       {tab === "research" ? (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_30rem]">
           <Card>
             <CardHeader>
-              <CardTitle>Evidence</CardTitle>
+              <CardTitle>What we found about this company</CardTitle>
               <span className="text-xs text-subtle">
-                Every excerpt is copied verbatim from its source
+                Every quote is copied word for word — open the source to check it
               </span>
             </CardHeader>
             <CardContent>
@@ -468,8 +470,8 @@ function CompanyDetailContent() {
               ) : (
                 <EvidenceList
                   items={evidence.data ?? []}
-                  emptyTitle="No evidence collected yet"
-                  emptyDescription="Run research to collect evidence from the company website and public sources."
+                  emptyTitle="Nothing found yet"
+                  emptyDescription="Use “Research company” above to look through their website and public pages."
                 />
               )}
             </CardContent>
@@ -477,24 +479,25 @@ function CompanyDetailContent() {
 
           <Card className="h-fit">
             <CardHeader>
-              <CardTitle>Research brief</CardTitle>
+              <CardTitle>Summary</CardTitle>
             </CardHeader>
             <CardContent>
               {research.data?.brief ? (
-                <>
-                  <p className="mb-3 text-xs text-subtle">
-                    Generated {formatDateTime(research.data.brief.created_at)} ·{" "}
-                    {research.data.brief.generated_by}
-                  </p>
-                  <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-lg bg-surface-muted p-3 text-xs leading-relaxed text-foreground">
-                    {research.data.brief.markdown}
-                  </pre>
-                </>
+                <div className="max-h-[40rem] overflow-y-auto pr-1">
+                  <ResearchBriefView
+                    profile={
+                      (research.data.brief.profile as Record<string, unknown>) ?? null
+                    }
+                    markdown={research.data.brief.markdown}
+                    generatedAt={research.data.brief.created_at}
+                    generatedBy={research.data.brief.generated_by}
+                  />
+                </div>
               ) : (
                 <EmptyState
                   icon={FileText}
-                  title="No brief yet"
-                  description="A brief is written at the end of each research run."
+                  title="No summary yet"
+                  description="A summary is written once the company has been researched."
                 />
               )}
             </CardContent>
@@ -575,7 +578,7 @@ function CompanyDetailContent() {
       {tab === "sources" ? (
         <Card>
           <CardHeader>
-            <CardTitle>Research sources</CardTitle>
+            <CardTitle>Where this came from</CardTitle>
             {sources.data ? <Badge>{sources.data.length}</Badge> : null}
           </CardHeader>
           {sources.isLoading ? (
@@ -585,19 +588,18 @@ function CompanyDetailContent() {
           ) : (sources.data?.length ?? 0) === 0 ? (
             <EmptyState
               icon={Link2}
-              title="No sources retrieved yet"
-              description="Sources are collected during a research run."
+              title="No pages read yet"
+              description="Pages are collected when you research the company."
             />
           ) : (
             <TableWrap>
               <Table className="min-w-[44rem]">
                 <thead>
                   <tr>
-                    <Th>Source</Th>
-                    <Th>Type</Th>
-                    <Th>Reliability</Th>
-                    <Th>Published</Th>
-                    <Th className="text-right">Content</Th>
+                    <Th>Page</Th>
+                    <Th>Kind</Th>
+                    <Th>Who published it</Th>
+                    <Th>Date</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -624,20 +626,13 @@ function CompanyDetailContent() {
                       <Td>
                         <Badge
                           tone={source.source_reliability === "first_party" ? "accent" : "neutral"}
-                          title="How directly this source speaks for the company."
+                          title={plain.sourceTrust(source.source_reliability).help}
                         >
-                          {humanize(source.source_reliability)}
+                          {plain.sourceTrust(source.source_reliability).label}
                         </Badge>
                       </Td>
                       <Td className="whitespace-nowrap text-muted">
-                        {source.published_at ? formatDate(source.published_at) : "—"}
-                      </Td>
-                      <Td className="text-right tabular-nums text-muted">
-                        {source.content_length > 0
-                          ? `${formatNumber(source.content_length)}`
-                          : source.retrieval_status === "skipped"
-                            ? "skipped"
-                            : "—"}
+                        {source.published_at ? formatDate(source.published_at) : "Not shown"}
                       </Td>
                     </Tr>
                   ))}
@@ -652,59 +647,49 @@ function CompanyDetailContent() {
       {tab === "history" ? (
         <Card>
           <CardHeader>
-            <CardTitle>Research history</CardTitle>
-            <span className="text-xs text-subtle">Earlier runs are never overwritten</span>
+            <CardTitle>Past checks</CardTitle>
+            <span className="text-xs text-subtle">Nothing from an earlier check is ever deleted</span>
           </CardHeader>
           {(research.data?.runs.length ?? 0) === 0 ? (
             <EmptyState
               icon={History}
-              title="No research runs yet"
-              description="Each run is recorded here so you can see what changed between them."
+              title="Not checked yet"
+              description="Each time you research this company it is recorded here, so you can see what changed."
             />
           ) : (
             <TableWrap>
               <Table className="min-w-[46rem]">
                 <thead>
                   <tr>
-                    <Th>Run</Th>
-                    <Th>Started</Th>
-                    <Th>Status</Th>
-                    <Th className="text-right">Sources</Th>
-                    <Th className="text-right">Evidence</Th>
-                    <Th className="text-right">New</Th>
-                    <Th className="text-right">Signals</Th>
+                    <Th>When</Th>
+                    <Th>Result</Th>
+                    <Th className="text-right">Things found</Th>
+                    <Th className="text-right">New since last time</Th>
                     <Th className="text-right">Opportunities</Th>
                   </tr>
                 </thead>
                 <tbody>
                   {research.data?.runs.map((item) => (
                     <Tr key={item.id}>
-                      <Td>
+                      <Td className="whitespace-nowrap">
                         <Link
                           href={`/research/${item.id}`}
                           className="font-medium text-foreground hover:text-accent"
                         >
-                          #{item.id}
+                          {formatDateTime(item.started_at ?? item.created_at)}
                         </Link>
-                      </Td>
-                      <Td className="whitespace-nowrap text-muted">
-                        {formatDateTime(item.started_at ?? item.created_at)}
                       </Td>
                       <Td>
                         <ResearchStatusBadge status={item.status} />
-                      </Td>
-                      <Td className="text-right tabular-nums text-muted">
-                        {item.sources_retrieved}
                       </Td>
                       <Td className="text-right tabular-nums text-muted">{item.evidence_count}</Td>
                       <Td className="text-right tabular-nums">
                         {item.new_evidence_count > 0 ? (
                           <Badge tone="accent">+{item.new_evidence_count}</Badge>
                         ) : (
-                          <span className="text-muted">0</span>
+                          <span className="text-muted">none</span>
                         )}
                       </Td>
-                      <Td className="text-right tabular-nums text-muted">{item.signals_count}</Td>
                       <Td className="text-right tabular-nums text-muted">
                         {item.opportunities_count}
                       </Td>

@@ -1,29 +1,35 @@
 "use client";
 
-import { ExternalLink, Quote } from "lucide-react";
+import { ExternalLink, EyeOff, Quote } from "lucide-react";
 import * as React from "react";
 
 import {
   ConfidenceBadge,
   EpistemicBadge,
   FreshnessBadge,
-  ObservationBadge,
 } from "@/components/domain/research-badges";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/states";
-import { formatDate, humanize, truncate } from "@/lib/format";
+import { formatDate, hostname } from "@/lib/format";
+import { plain } from "@/lib/plain";
 import type { Evidence } from "@/lib/types";
 
 /**
- * One evidence item. The excerpt is verbatim from the source and the URL is
- * always shown, so a reader can check the claim rather than trust it.
+ * One thing we found, written for someone who is not technical.
+ *
+ * The quoted text is copied word for word from the page, and the Source
+ * button opens that page — so the reader can check any claim themselves
+ * rather than taking it on trust.
  */
 export function EvidenceItem({ evidence }: { evidence: Evidence }) {
+  const stale = evidence.observation_state === "not_found";
+
   return (
-    <article className="border-b border-border py-4 last:border-b-0">
+    <article className={`border-b border-border py-4 last:border-b-0 ${stale ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="min-w-0 flex-1 text-sm font-medium text-foreground">{evidence.claim}</p>
-        <Badge tone="neutral">{humanize(evidence.evidence_type)}</Badge>
+        <Badge tone="neutral">{plain.findingKind(evidence.evidence_type)}</Badge>
       </div>
 
       {evidence.excerpt ? (
@@ -33,7 +39,7 @@ export function EvidenceItem({ evidence }: { evidence: Evidence }) {
         </blockquote>
       ) : null}
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <EpistemicBadge status={evidence.epistemic_status} />
         <FreshnessBadge
           freshness={evidence.freshness}
@@ -44,65 +50,97 @@ export function EvidenceItem({ evidence }: { evidence: Evidence }) {
           level={evidence.confidence_level}
           breakdown={evidence.confidence_components}
         />
-        <ObservationBadge state={evidence.observation_state} />
-        {evidence.extractor !== "rules" ? (
-          <Badge tone="neutral" title="Extracted by the language model and verified against the source text.">
-            {evidence.extractor}
+        {stale ? (
+          <Badge tone="warning" title={plain.visibility("not_found").help}>
+            <EyeOff className="size-3" />
+            No longer visible
           </Badge>
         ) : null}
       </div>
 
-      <dl className="mt-2.5 grid gap-x-6 gap-y-1 text-xs text-subtle sm:grid-cols-2">
-        <div className="flex gap-1.5">
-          <dt>Published:</dt>
-          <dd className="text-muted">
-            {evidence.published_at ? formatDate(evidence.published_at) : "not stated on the page"}
-          </dd>
-        </div>
-        <div className="flex gap-1.5">
-          <dt>Observed:</dt>
-          <dd className="text-muted">{formatDate(evidence.observed_at)}</dd>
-        </div>
-        {evidence.times_observed > 1 ? (
-          <div className="flex gap-1.5">
-            <dt>Seen in:</dt>
-            <dd className="text-muted">{evidence.times_observed} research runs</dd>
-          </div>
+      {/* The source is the whole point — make it a real button, not a footnote. */}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        {evidence.source?.url ? (
+          <a
+            href={evidence.source.url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border-strong bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-accent-border hover:text-accent"
+            title={evidence.source.url}
+          >
+            <ExternalLink className="size-3.5" />
+            Source: {hostname(evidence.source.url)}
+          </a>
         ) : null}
-      </dl>
-
-      {evidence.source ? (
-        <a
-          href={evidence.source.url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="mt-2 inline-flex max-w-full items-center gap-1.5 text-xs text-accent hover:underline"
-        >
-          <span className="truncate">{truncate(evidence.source.url, 78)}</span>
-          <ExternalLink className="size-3 shrink-0" />
-        </a>
-      ) : null}
+        <span className="text-xs text-subtle">
+          {evidence.published_at
+            ? `Published ${formatDate(evidence.published_at)}`
+            : `Found ${formatDate(evidence.observed_at)}`}
+        </span>
+        {evidence.source?.reliability ? (
+          <span
+            className="text-xs text-subtle"
+            title={plain.sourceTrust(evidence.source.reliability).help}
+          >
+            {plain.sourceTrust(evidence.source.reliability).label}
+          </span>
+        ) : null}
+      </div>
     </article>
   );
 }
 
 export function EvidenceList({
   items,
-  emptyTitle = "No evidence",
+  emptyTitle = "Nothing found yet",
   emptyDescription,
 }: {
   items: Evidence[];
   emptyTitle?: string;
   emptyDescription?: string;
 }) {
+  // Things we can no longer see on the web are kept on record but hidden by
+  // default: showing a dozen struck-through items would mislead a reader who
+  // has no reason to know what "no longer observed" means.
+  const current = items.filter((item) => item.observation_state !== "not_found");
+  const stale = items.filter((item) => item.observation_state === "not_found");
+  const [showStale, setShowStale] = React.useState(false);
+
   if (items.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
+
   return (
     <div>
-      {items.map((item) => (
-        <EvidenceItem key={item.id} evidence={item} />
-      ))}
+      {current.length > 0 ? (
+        current.map((item) => <EvidenceItem key={item.id} evidence={item} />)
+      ) : (
+        <EmptyState
+          title="Nothing is currently showing"
+          description="Everything we found earlier has since disappeared from the web. It is kept below for reference."
+        />
+      )}
+
+      {stale.length > 0 ? (
+        <div className="mt-4 border-t border-border pt-4">
+          <Button variant="ghost" size="sm" onClick={() => setShowStale((value) => !value)}>
+            <EyeOff />
+            {showStale ? "Hide" : "Show"} {stale.length} older{" "}
+            {stale.length === 1 ? "item" : "items"} we can no longer find
+          </Button>
+          {showStale ? (
+            <div className="mt-2">
+              <p className="mb-3 rounded-lg bg-surface-muted/60 px-3 py-2 text-xs text-muted">
+                These were found in an earlier check but are not on the pages any more.
+                They are kept for reference — do not rely on them.
+              </p>
+              {stale.map((item) => (
+                <EvidenceItem key={item.id} evidence={item} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

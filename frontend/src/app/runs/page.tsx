@@ -12,7 +12,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { Card } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
-import { Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
+import { RowInnerLink, RowLink, Table, TableWrap, Td, Th, Tr } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { formatDateTime, formatDuration } from "@/lib/format";
 
@@ -76,20 +76,15 @@ export default function RunsPage() {
                   {data.items.map((run) => (
                     <Tr key={run.id}>
                       <Td>
-                        <Link
-                          href={`/runs/${run.id}`}
-                          className="font-medium text-foreground hover:text-accent"
-                        >
-                          #{run.id}
-                        </Link>
+                        <RowLink href={`/runs/${run.id}`}>#{run.id}</RowLink>
                       </Td>
                       <Td>
-                        <Link
+                        <RowInnerLink
                           href={`/targets/${run.target_id}`}
-                          className="text-muted hover:text-accent"
+                          className="text-muted"
                         >
                           {run.target_name ?? `Target ${run.target_id}`}
-                        </Link>
+                        </RowInnerLink>
                         <p className="text-xs text-subtle">
                           {run.target_industry}
                           {run.target_location ? ` / ${run.target_location}` : ""}

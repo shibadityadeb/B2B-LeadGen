@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import * as React from "react";
 import useSWR from "swr";
 
+import { ResearchBriefView } from "@/components/company/research-brief-view";
 import { PageHeader } from "@/components/domain/page-header";
 import { ProgressBar } from "@/components/domain/progress";
 import { ResearchStatusBadge } from "@/components/domain/research-badges";
@@ -53,8 +54,14 @@ export default function ResearchRunDetailPage() {
     <>
       <PageHeader
         backHref="/research"
-        backLabel="Research runs"
-        title={isLoading ? <Skeleton className="h-8 w-44" /> : `Research run #${id}`}
+        backLabel="Company checks"
+        title={
+          isLoading ? (
+            <Skeleton className="h-8 w-56" />
+          ) : (
+            data?.company_name ?? `Company check #${id}`
+          )
+        }
         description={
           data ? (
             <span className="flex flex-wrap items-center gap-2">
@@ -106,28 +113,47 @@ export default function ResearchRunDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <Metric label="Sources found" value={data?.sources_discovered} loading={isLoading} />
-        <Metric label="Sources retrieved" value={data?.sources_retrieved} loading={isLoading} />
-        <Metric label="Evidence" value={data?.evidence_count} loading={isLoading} />
-        <Metric label="New evidence" value={data?.new_evidence_count} loading={isLoading} />
-        <Metric label="Signals" value={data?.signals_count} loading={isLoading} />
-        <Metric label="Opportunities" value={data?.opportunities_count} loading={isLoading} />
-      </div>
+      {/* A plain sentence beats a grid of counters for a non-technical reader. */}
+      {data && !active ? (
+        <Card className="mb-5">
+          <CardContent>
+            <p className="text-sm text-foreground">
+              We read <strong>{formatNumber(data.sources_retrieved)}</strong>{" "}
+              {data.sources_retrieved === 1 ? "page" : "pages"} about this company and found{" "}
+              <strong>{formatNumber(data.evidence_count)}</strong>{" "}
+              {data.evidence_count === 1 ? "thing" : "things"} worth noting
+              {data.new_evidence_count > 0 ? (
+                <>
+                  , <strong>{formatNumber(data.new_evidence_count)}</strong> of them new since
+                  the last check
+                </>
+              ) : null}
+              . That points to <strong>{formatNumber(data.opportunities_count)}</strong>{" "}
+              {data.opportunities_count === 1 ? "possible opening" : "possible openings"}.
+            </p>
+            <Link
+              href={`/companies/${data.company_id}?tab=research`}
+              className="mt-2 inline-block text-sm text-accent hover:underline"
+            >
+              See everything we found →
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {llmStats ? (
         <Card className="mb-5">
           <CardHeader>
-            <CardTitle>Language model contribution</CardTitle>
+            <CardTitle>AI assistance</CardTitle>
             <span className="text-xs text-subtle">
-              Claims are discarded unless their excerpt appears in a retrieved source
+              Anything the AI said that we could not find on the page was thrown away
             </span>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            <Badge tone="neutral">{llmStats.returned ?? 0} returned</Badge>
-            <Badge tone="success">{llmStats.accepted ?? 0} verified</Badge>
-            <Badge tone="warning">{llmStats.rejected_unverified ?? 0} not in source</Badge>
-            <Badge tone="warning">{llmStats.rejected_bad_type ?? 0} invalid type</Badge>
+            <Badge tone="success">{llmStats.accepted ?? 0} kept (found on the page)</Badge>
+            <Badge tone="warning">
+              {(llmStats.rejected_unverified ?? 0) + (llmStats.rejected_bad_type ?? 0)} discarded
+            </Badge>
           </CardContent>
         </Card>
       ) : null}
@@ -135,7 +161,7 @@ export default function ResearchRunDetailPage() {
       {(failures.length > 0 || uncertainties.length > 0) && data ? (
         <Card className="mb-5 border-warning/40 bg-warning-soft/40">
           <CardHeader>
-            <CardTitle>Notes from this run</CardTitle>
+            <CardTitle>Worth knowing</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-1.5 text-sm text-muted">
@@ -155,10 +181,10 @@ export default function ResearchRunDetailPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_30rem]">
         <Card>
           <CardHeader>
-            <CardTitle>Sources collected in this run</CardTitle>
+            <CardTitle>Pages we read</CardTitle>
             {data ? <Badge>{data.sources.length}</Badge> : null}
           </CardHeader>
           {isLoading ? (
@@ -172,10 +198,9 @@ export default function ResearchRunDetailPage() {
               <Table className="min-w-[36rem]">
                 <thead>
                   <tr>
-                    <Th>Source</Th>
-                    <Th>Type</Th>
-                    <Th>Status</Th>
-                    <Th className="text-right">Chars</Th>
+                    <Th>Page</Th>
+                    <Th>Kind</Th>
+                    <Th>Could we read it?</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -213,12 +238,14 @@ export default function ResearchRunDetailPage() {
                           }
                           title={source.error_message ?? undefined}
                         >
-                          {humanize(source.retrieval_status)}
+                          {source.retrieval_status === "retrieved"
+                            ? "Yes"
+                            : source.retrieval_status === "skipped"
+                              ? "Skipped"
+                              : "No"}
                         </Badge>
                       </Td>
-                      <Td className="text-right tabular-nums text-muted">
-                        {source.content_length > 0 ? formatNumber(source.content_length) : "—"}
-                      </Td>
+
                     </Tr>
                   ))}
                 </tbody>
@@ -229,15 +256,18 @@ export default function ResearchRunDetailPage() {
 
         <Card className="h-fit">
           <CardHeader>
-            <CardTitle>Brief from this run</CardTitle>
+            <CardTitle>Summary</CardTitle>
           </CardHeader>
           <CardContent>
-            {data?.brief_markdown ? (
-              <pre className="max-h-[34rem] overflow-auto whitespace-pre-wrap rounded-lg bg-surface-muted p-3 text-xs leading-relaxed text-foreground">
-                {data.brief_markdown}
-              </pre>
+            {data?.brief_markdown || data?.brief_profile ? (
+              <div className="max-h-[42rem] overflow-y-auto pr-1">
+                <ResearchBriefView
+                  profile={data.brief_profile ?? null}
+                  markdown={data.brief_markdown ?? null}
+                />
+              </div>
             ) : (
-              <EmptyState icon={FileText} title="No brief for this run" />
+              <EmptyState icon={FileText} title="No summary for this check" />
             )}
           </CardContent>
         </Card>
@@ -246,25 +276,3 @@ export default function ResearchRunDetailPage() {
   );
 }
 
-function Metric({
-  label,
-  value,
-  loading,
-}: {
-  label: string;
-  value: number | undefined;
-  loading?: boolean;
-}) {
-  return (
-    <Card className="px-4 py-3">
-      <p className="text-xs text-subtle">{label}</p>
-      {loading ? (
-        <Skeleton className="mt-1.5 h-6 w-10" />
-      ) : (
-        <p className="mt-0.5 text-xl font-semibold tabular-nums text-foreground">
-          {formatNumber(value ?? 0)}
-        </p>
-      )}
-    </Card>
-  );
-}

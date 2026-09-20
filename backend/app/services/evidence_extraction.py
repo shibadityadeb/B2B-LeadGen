@@ -96,16 +96,31 @@ def _truncate(sentence: str) -> str:
     return sentence if len(sentence) <= limit else f"{sentence[: limit - 1]}…"
 
 
+def mentions_company(text: str | None, tokens: list[str]) -> bool:
+    """True when any distinctive company token appears in ``text``."""
+    if not text or not tokens:
+        return False
+    lowered = text.lower()
+    return any(token in lowered for token in tokens)
+
+
 def extract_from_text(
     text: str | None,
     *,
     company_name: str,
     max_per_type: int = 3,
+    require_tokens: list[str] | None = None,
 ) -> list[ExtractedEvidence]:
     """Return evidence found in ``text``.
 
     ``max_per_type`` keeps one verbose page from flooding the profile with
     near-identical observations.
+
+    ``require_tokens`` restricts extraction to sentences that actually name
+    the company. Trade publications cover many companies in one article, and
+    site furniture ("Earn by hosting sponsored links") belongs to no company
+    at all — without this, a claim about a competitor would be attributed to
+    the company being researched.
     """
     if not text:
         return []
@@ -115,6 +130,10 @@ def extract_from_text(
     per_type: dict[str, int] = {}
 
     for sentence in _sentences(text):
+        # On a third-party page, only sentences naming the company can
+        # support a claim about it.
+        if require_tokens and not mentions_company(sentence, require_tokens):
+            continue
         for pattern in PATTERNS:
             if not pattern.regex.search(sentence):
                 continue
@@ -178,7 +197,9 @@ _EMPLOYEE_COUNT = re.compile(
 )
 
 
-def extract_identity(text: str | None, *, company_name: str) -> list[ExtractedEvidence]:
+def extract_identity(
+    text: str | None, *, company_name: str, require_tokens: list[str] | None = None
+) -> list[ExtractedEvidence]:
     """Facts about the company itself, used for the profile and for
     contradiction detection (two sources disagreeing on headcount)."""
     if not text:
@@ -186,6 +207,8 @@ def extract_identity(text: str | None, *, company_name: str) -> list[ExtractedEv
 
     items: list[ExtractedEvidence] = []
     for sentence in _sentences(text):
+        if require_tokens and not mentions_company(sentence, require_tokens):
+            continue
         founded = _FOUNDED.search(sentence)
         if founded:
             items.append(

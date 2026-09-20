@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { humanize } from "@/lib/format";
+import { ESTIMATED_DATE_HELP, plain } from "@/lib/plain";
 import type {
   ConfidenceBreakdown,
   ConfidenceLevel,
@@ -34,23 +35,31 @@ export function FreshnessBadge({
   basis?: string | null;
 }) {
   const level = (freshness ?? "unknown") as FreshnessLevel;
-  // An undated page tells us when we fetched it, not when it happened —
-  // say so rather than implying the event is fresh.
+  // An undated page tells us when we fetched it, not when it happened.
   const estimated = basis && basis !== "published_at";
+  const word = plain.recency(level);
   const title = estimated
-    ? "No publication date on the source; age is measured from when the page was retrieved."
+    ? ESTIMATED_DATE_HELP
     : ageDays !== null && ageDays !== undefined
-      ? `${ageDays} day(s) since publication`
-      : undefined;
+      ? `${ageDays} day(s) ago`
+      : word.help;
 
   return (
-    <Badge tone={FRESHNESS_TONE[level]} title={title}>
+    <Badge tone={estimated ? "neutral" : FRESHNESS_TONE[level]} title={title}>
       <Clock className="size-3" />
-      {humanize(level)}
-      {estimated ? <span className="opacity-70">·&nbsp;est.</span> : null}
+      {estimated ? "Date not shown" : word.label}
     </Badge>
   );
 }
+
+/** Plain names for the confidence components. */
+const COMPONENT_LABELS: Record<string, string> = {
+  source_quality: "Source quality",
+  source_count: "How many sources",
+  recency: "How recent",
+  directness: "Stated outright",
+  agreement: "Sources agree",
+};
 
 const CONFIDENCE_TONE: Record<ConfidenceLevel, "success" | "accent" | "neutral"> = {
   high: "success",
@@ -78,8 +87,8 @@ export function ConfidenceBadge({
         aria-expanded={hasBreakdown ? open : undefined}
         title={hasBreakdown ? "Show how this was calculated" : undefined}
       >
-        <Badge tone={CONFIDENCE_TONE[level]}>
-          {humanize(level)} confidence
+        <Badge tone={CONFIDENCE_TONE[level]} title={plain.strength(level).help}>
+          {plain.strength(level).label}
           {hasBreakdown ? <Info className="size-3 opacity-70" /> : null}
         </Badge>
       </button>
@@ -87,12 +96,16 @@ export function ConfidenceBadge({
       {open && hasBreakdown ? (
         <div className="absolute right-0 top-full z-20 mt-1.5 w-72 rounded-lg border border-border bg-surface p-3 text-left shadow-lg">
           <p className="mb-2 text-xs font-medium text-foreground">
-            Evidence quality, not certainty
+            Why we rated it this way
+          </p>
+          <p className="mb-2 text-xs text-muted">
+            This scores how good the supporting information is — not whether the
+            conclusion is true.
           </p>
           <dl className="space-y-1.5">
             {Object.entries(components).map(([key, value]) => (
               <div key={key} className="flex items-center gap-2">
-                <dt className="w-28 shrink-0 text-xs text-muted">{humanize(key)}</dt>
+                <dt className="w-28 shrink-0 text-xs text-muted">{COMPONENT_LABELS[key] ?? humanize(key)}</dt>
                 <dd className="flex flex-1 items-center gap-2">
                   <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface-muted">
                     <span
@@ -129,17 +142,11 @@ const EPISTEMIC_TONE: Record<EpistemicStatus, "success" | "accent" | "warning" |
   unknown: "neutral",
 };
 
-const EPISTEMIC_HELP: Record<EpistemicStatus, string> = {
-  known: "Stated directly in the source text.",
-  inferred: "Derived from the source rather than stated.",
-  possible: "The source hedges — a plan or intention, not a completed event.",
-  unknown: "Not established by the sources retrieved.",
-};
-
 export function EpistemicBadge({ status }: { status: EpistemicStatus }) {
+  const word = plain.certainty(status);
   return (
-    <Badge tone={EPISTEMIC_TONE[status]} title={EPISTEMIC_HELP[status]}>
-      {humanize(status)}
+    <Badge tone={EPISTEMIC_TONE[status]} title={word.help}>
+      {word.label}
     </Badge>
   );
 }
@@ -151,17 +158,11 @@ const OPPORTUNITY_TONE: Record<OpportunityStatus, "success" | "accent" | "warnin
   dismissed: "neutral",
 };
 
-const OPPORTUNITY_HELP: Record<OpportunityStatus, string> = {
-  supported: "Several signals, corroborated by more than one source.",
-  candidate: "Worth looking into; not yet corroborated across sources.",
-  uncertain: "Weak or thin evidence.",
-  dismissed: "Dismissed by a reviewer. Later research will not revive it.",
-};
-
 export function OpportunityStatusBadge({ status }: { status: OpportunityStatus }) {
+  const word = plain.opportunityStanding(status);
   return (
-    <Badge tone={OPPORTUNITY_TONE[status]} title={OPPORTUNITY_HELP[status]}>
-      {humanize(status)}
+    <Badge tone={OPPORTUNITY_TONE[status]} title={word.help}>
+      {word.label}
     </Badge>
   );
 }
@@ -186,33 +187,42 @@ export function ResearchStatusBadge({ status }: { status: ResearchStatus }) {
 }
 
 export function ObservationBadge({ state }: { state: ObservationState }) {
-  if (state === "new") return <Badge tone="accent">New</Badge>;
-  if (state === "updated") return <Badge tone="accent">Updated</Badge>;
-  if (state === "not_found")
+  const word = plain.visibility(state);
+  if (state === "not_found") {
     return (
-      <Badge tone="warning" title="Not observed in the most recent research run. Kept on record.">
+      <Badge tone="warning" title={word.help}>
         <AlertTriangle className="size-3" />
-        No longer found
+        {word.label}
       </Badge>
     );
+  }
+  if (state === "new" || state === "updated") {
+    return (
+      <Badge tone="accent" title={word.help}>
+        {word.label}
+      </Badge>
+    );
+  }
   return (
-    <Badge tone="neutral" title="Seen again in the most recent run.">
-      Still present
+    <Badge tone="neutral" title={word.help}>
+      {word.label}
     </Badge>
   );
 }
 
 export function VerificationBadge({ status }: { status: string }) {
+  const word = plain.personTrust(status);
   if (status === "role_only") {
     return (
-      <Badge tone="warning" title="A role was published without a name. No name was invented.">
+      <Badge tone="warning" title={word.help}>
         <CircleHelp className="size-3" />
-        Role only
+        {word.label}
       </Badge>
     );
   }
-  if (status === "public_company_source") {
-    return <Badge tone="success" title="Read from the company's own public page.">Company source</Badge>;
-  }
-  return <Badge tone="neutral">{humanize(status)}</Badge>;
+  return (
+    <Badge tone={status === "public_company_source" ? "success" : "neutral"} title={word.help}>
+      {word.label}
+    </Badge>
+  );
 }
