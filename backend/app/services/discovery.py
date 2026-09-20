@@ -139,6 +139,10 @@ class DiscoveryService:
     ) -> list[tuple[SearchResult, SearchResultItem]]:
         collected: list[tuple[SearchResult, SearchResultItem]] = []
         seen_urls: set[str] = set()
+        #: Set when the provider refuses us rather than finding nothing. Once
+        #: that happens, later empty results are the same refusal, not an
+        #: honest "no matches" — reporting them as 0 would be misleading.
+        blocked_reason: str | None = None
 
         for index, query in enumerate(queries, start=1):
             try:
@@ -147,6 +151,11 @@ class DiscoveryService:
                 )
                 query.status = "completed"
                 query.results_count = len(items)
+
+                if not items and blocked_reason:
+                    query.status = "failed"
+                    query.error_message = blocked_reason
+                    run.failed_queries_count += 1
             except ProviderError as exc:
                 query.status = "failed"
                 query.error_message = str(exc)
@@ -155,6 +164,8 @@ class DiscoveryService:
                     *(run.errors or []),
                     {"stage": "search", "query": query.query, "message": str(exc)},
                 ]
+                if exc.details.get("retryable") or exc.details.get("needs_searxng"):
+                    blocked_reason = str(exc)
                 items = []
                 logger.warning("query failed run=%s query=%r error=%s", run.id, query.query, exc)
 
@@ -185,6 +196,11 @@ class DiscoveryService:
 
             if settings.search_delay_seconds > 0 and index < len(queries):
                 await asyncio.sleep(settings.search_delay_seconds)
+
+        # A run that found nothing because it was refused has not "completed
+        # with no results" — it did not run. Say so.
+        if blocked_reason and not collected:
+            raise ProviderError(blocked_reason)
 
         if run.failed_queries_count == len(queries) and queries:
             raise ProviderError(

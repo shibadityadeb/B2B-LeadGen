@@ -44,6 +44,12 @@ class SearxngSearchProvider(SearchProvider):
             host in self.base_url for host in self._LOOPBACK
         )
 
+    #: A free hosting plan sleeps an idle service, and the first request after
+    #: that has to wait for it to start. One patient retry avoids failing a
+    #: whole run because the search engine was asleep.
+    WAKE_RETRIES = 1
+    WAKE_TIMEOUT_SECONDS = 90.0
+
     async def search(self, query: str, *, limit: int = 20) -> list[SearchResultItem]:
         if self._points_at_itself:
             raise ProviderError(
@@ -56,18 +62,33 @@ class SearxngSearchProvider(SearchProvider):
             "safesearch": "0",
             "language": "en",
         }
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    f"{self.base_url}/search",
-                    params=params,
-                    headers={"Accept": "application/json", "User-Agent": settings.crawl_user_agent},
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(self.WAKE_RETRIES + 1):
+            # Allow far longer on the retry: a sleeping instance can take most
+            # of a minute to answer its first request.
+            timeout = self.timeout if attempt == 0 else self.WAKE_TIMEOUT_SECONDS
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.get(
+                        f"{self.base_url}/search",
+                        params=params,
+                        headers={
+                            "Accept": "application/json",
+                            "User-Agent": settings.crawl_user_agent,
+                        },
+                    )
+                break
+            except httpx.HTTPError as exc:
+                last_error = exc
+                if attempt == self.WAKE_RETRIES:
+                    raise ProviderError(
+                        f"Could not reach SearXNG at {self.base_url}: {exc}",
+                        details={"provider": self.name},
+                    ) from exc
+                logger.info(
+                    "searxng did not answer in %.0fs; retrying once in case it "
+                    "was asleep", timeout,
                 )
-        except httpx.HTTPError as exc:
-            raise ProviderError(
-                f"Could not reach SearXNG at {self.base_url}: {exc}",
-                details={"provider": self.name},
-            ) from exc
 
         if response.status_code == 403:
             raise ProviderError(

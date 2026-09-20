@@ -1,30 +1,31 @@
-# Optional second Render service, for when DuckDuckGo starts refusing queries.
+# Render Blueprint for the search service.
 #
-# DuckDuckGo limits automated searching from shared server addresses, which is
-# exactly what a hosting platform gives you. If discovery returns nothing,
-# deploy this alongside the API and switch the API over:
+#   Render → New → Blueprint → this repository → pick this file.
+#   Or: New → Web Service → Docker → root directory infrastructure/searxng
 #
+# Then point the API at it:
 #   SEARCH_PROVIDER = searxng
 #   SEARXNG_URL     = https://<this-service>.onrender.com
 #
-# This runs the official SearXNG image, so nothing needs building.
+# It is built from a Dockerfile rather than run from the official image
+# directly, because SearXNG ships with JSON output disabled and the backend
+# needs it.
 
 services:
   - type: web
     name: ubm-searxng
-    runtime: image
-    plan: starter # the free plan sleeps, and a sleeping search engine is no use
-    region: singapore
-    image:
-      url: docker.io/searxng/searxng:latest
+    runtime: docker
+    rootDir: infrastructure/searxng
+    dockerfilePath: ./Dockerfile
+    region: singapore # keep it near the API
+    plan: free # see the note on cold starts in README → Deploying
+    healthCheckPath: /healthz
+
     envVars:
+      - key: SEARXNG_SECRET
+        generateValue: true # Render generates and stores it
       - key: SEARXNG_BASE_URL
         sync: false # https://<this-service>.onrender.com/
-      - key: SEARXNG_SECRET
-        generateValue: true # Render generates and stores this for you
-      # The backend needs the JSON API, which is off by default.
-      - key: SEARXNG_SETTINGS_PATH
-        value: /etc/searxng/settings.yml
       - key: UWSGI_WORKERS
         value: "2"
       - key: UWSGI_THREADS

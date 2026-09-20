@@ -1,0 +1,58 @@
+# SearXNG settings for a hosted deployment.
+#
+# Separate from settings.yml because that one binds to 127.0.0.1:8888, which
+# is right for a laptop and wrong for a container: a platform tells the process
+# which address and port to use, and a service bound to loopback is
+# unreachable from outside.
+#
+# The one change that actually matters is `formats: [json]`. It is off by
+# default in SearXNG, and without it the backend gets HTML and fails.
+
+use_default_settings: true
+
+general:
+  instance_name: "UBM Research"
+  debug: false
+  # This instance exists to serve one backend, not to be browsed.
+  enable_metrics: false
+
+server:
+  # Replaced at start-up from the SEARXNG_SECRET environment variable.
+  secret_key: "set-me-via-environment"
+  # The per-IP limiter would throttle our own backend, which is the only
+  # client. The service is not intended to be public.
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "en"
+  formats:
+    - json
+
+ui:
+  default_locale: en
+
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 20.0
+  pool_connections: 100
+  pool_maxsize: 20
+
+engines:
+  # Engines that tolerate automated querying without an API key. SearXNG
+  # spreads queries across them, which is why it succeeds where a single
+  # endpoint refuses.
+  - name: duckduckgo
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: startpage
+    disabled: false
+  - name: wikipedia
+    disabled: true
+  - name: google
+    disabled: true

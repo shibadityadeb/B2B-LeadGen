@@ -178,3 +178,43 @@ async def test_a_completed_run_is_not_executed_twice(session, provider):
 
     await service.execute_run(run.id)
     assert len(provider.queries) == queries_after_first
+
+
+async def test_a_blocked_search_is_reported_as_blocked_not_as_no_results(session):
+    """When a provider refuses us, later empty responses are the same refusal.
+    Reporting them as '0 results' would tell the user their target is bad when
+    the search engine is the problem."""
+    from app.core.errors import ProviderError
+
+    target = await _target(session)
+
+    class RefusesAfterFirst(FakeSearchProvider):
+        """Mirrors the real endpoint: an explicit challenge, then silence."""
+
+        def __init__(self):
+            super().__init__(default=[])
+            self.calls = 0
+
+        async def search(self, query: str, *, limit: int = 20):
+            self.calls += 1
+            if self.calls == 1:
+                raise ProviderError(
+                    "Serving a bot-check page instead of results.",
+                    details={"provider": "fake", "retryable": True, "needs_searxng": True},
+                )
+            return []
+
+    service = DiscoveryService(session, provider=RefusesAfterFirst())
+    run = await service.create_run(target)
+
+    with pytest.raises(ProviderError):
+        await service.execute_run(run.id)
+
+    failed = await service.runs.get(run.id)
+    assert failed.status == RunStatus.FAILED
+    assert "bot-check" in (failed.error_message or "").lower()
+
+    # Every query is marked failed, not quietly "completed with 0 results".
+    queries = await service.runs.queries_for_run(run.id)
+    assert queries
+    assert all(query.status == "failed" for query in queries)
