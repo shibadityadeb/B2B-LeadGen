@@ -1,6 +1,6 @@
 # UBM Growth Opportunity Engine — Phase 1
 
-A B2B growth opportunity engine for [Upshot Brand Media](https://www.upshotbrandmedia.com/).
+A B2B growth opportunity engine 
 
 **Phase 1 scope:** define a target → discover companies from live web search → store them with
 source provenance → run an initial website crawl. Every company in the database is traceable to
