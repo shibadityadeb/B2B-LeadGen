@@ -427,6 +427,12 @@ Do it in this order — each step needs a URL from the one before.
 
 1. Push this repository to GitHub.
 2. Render → **New → Blueprint** → select the repo. It reads `render.yaml`.
+
+> **Python version.** `backend/.python-version` pins 3.12.7. Do not remove it.
+> On Render's newer default (3.14) there is no `pydantic-core` wheel, so pip
+> tries to compile it from Rust source and the build fails with
+> `Read-only file system (os error 30)` — a confusing error whose real cause
+> is the Python version, not Rust.
 3. Render prompts for the values that are not in the file:
 
    | Variable | Value |

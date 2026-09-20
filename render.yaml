@@ -24,6 +24,11 @@ services:
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
     envVars:
+      # Pinned in three places on purpose. Render otherwise picks its current
+      # default — recently 3.14 — and pydantic-core has no wheel for that yet,
+      # so pip tries to compile it from Rust source and fails on Render's
+      # read-only cargo directory. `backend/.python-version` is the file
+      # Render reads; this variable is the belt to that braces.
       - key: PYTHON_VERSION
         value: "3.12.7"
       - key: ENVIRONMENT
