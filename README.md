@@ -1,4 +1,4 @@
-# UBM Growth Opportunity Engine — Phase 1
+# UBM Growth Opportunity Engine — Phases 1 & 2
 
 A B2B growth opportunity engine 
 
