@@ -176,3 +176,42 @@ async def test_status_endpoint_exposes_no_secrets(client):
     serialized = response.text.lower()
     for secret in ("password", "secret", "postgresql+asyncpg"):
         assert secret not in serialized
+
+
+# --------------------------------------------------------------------------- #
+# database URL normalization
+# --------------------------------------------------------------------------- #
+
+
+def test_managed_provider_urls_are_normalized_for_asyncpg():
+    """Neon, Supabase and Heroku hand out libpq-style URLs that asyncpg rejects."""
+    from app.core.config import normalize_database_url
+
+    neon = (
+        "postgresql://user:pw@ep-x-pooler.ap-southeast-1.aws.neon.tech/neondb"
+        "?sslmode=require&channel_binding=require"
+    )
+    fixed = normalize_database_url(neon)
+    assert fixed.startswith("postgresql+asyncpg://")
+    # These two options make asyncpg raise on connect.
+    assert "sslmode" not in fixed and "channel_binding" not in fixed
+    # TLS must still be requested, just in the form asyncpg understands.
+    assert "ssl=require" in fixed
+
+    heroku = "postgres://user:pw@host:5432/db"
+    assert normalize_database_url(heroku).startswith("postgresql+asyncpg://")
+
+
+def test_a_correct_url_is_left_alone():
+    from app.core.config import normalize_database_url
+
+    url = "postgresql+asyncpg://ubm:ubm@localhost:5432/ubm"
+    assert normalize_database_url(url) == url
+
+
+def test_an_explicit_non_asyncpg_driver_is_respected():
+    """A deliberate psycopg choice must not be rewritten."""
+    from app.core.config import normalize_database_url
+
+    url = "postgresql+psycopg://user:pw@host/db?sslmode=require"
+    assert normalize_database_url(url) == url

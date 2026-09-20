@@ -1,8 +1,39 @@
 """Application configuration, sourced entirely from environment variables."""
 
+import re
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Managed Postgres providers (Neon, Supabase, Heroku, Render) hand out
+# libpq-style URLs. Two things in them break the async driver:
+#   * the `postgresql://` prefix selects psycopg2, which is not installed
+#   * `sslmode` / `channel_binding` are libpq options asyncpg rejects outright
+# Normalizing here turns a confusing crash into a working connection.
+_LIBPQ_ONLY_PARAMS = re.compile(r"[?&](sslmode|channel_binding|target_session_attrs)=[^&]*")
+
+
+def normalize_database_url(url: str) -> str:
+    """Rewrite a pasted provider URL into one asyncpg accepts."""
+    if not url:
+        return url
+
+    requires_ssl = "sslmode=require" in url or "sslmode=verify" in url
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    if "+asyncpg" not in url:
+        return url  # a different driver was chosen deliberately; leave it be
+
+    url = _LIBPQ_ONLY_PARAMS.sub("", url)
+    # Tidy up a query string left empty or malformed by the removal.
+    url = url.replace("?&", "?").rstrip("?&")
+
+    if requires_ssl and "ssl=" not in url:
+        url += ("&" if "?" in url else "?") + "ssl=require"
+    return url
 
 
 class Settings(BaseSettings):
@@ -105,7 +136,9 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    settings.database_url = normalize_database_url(settings.database_url)
+    return settings
 
 
 settings = get_settings()

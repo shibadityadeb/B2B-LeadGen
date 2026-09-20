@@ -116,10 +116,22 @@ brew install postgresql@16 && brew services start postgresql@16
 psql -h localhost -d postgres -c "CREATE ROLE ubm LOGIN PASSWORD 'ubm';" -c "CREATE DATABASE ubm OWNER ubm;"
 ```
 
-**Option B — Supabase free tier**
+**Option B — managed Postgres (Neon, Supabase, Heroku, Render)**
 
-Create a project, copy the **session pooler** connection string, and set it in `.env` with the
-driver prefix swapped to `postgresql+asyncpg://`.
+Paste the connection string **exactly as the provider gives it** into `DATABASE_URL`. The backend
+normalizes it on startup:
+
+| What the provider gives you | Why it would fail | What the app does |
+| --- | --- | --- |
+| `postgresql://…` | selects psycopg2, which is not installed | rewrites to `postgresql+asyncpg://` |
+| `?sslmode=require` | asyncpg rejects this libpq option | translates to `ssl=require` |
+| `&channel_binding=require` | asyncpg rejects it | removes it, TLS is still enforced |
+
+For Supabase, use the **session pooler** string. Then run the migrations:
+
+```bash
+cd backend && .venv/bin/alembic upgrade head
+```
 
 ### 3. Backend
 
