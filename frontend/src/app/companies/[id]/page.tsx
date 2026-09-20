@@ -201,6 +201,25 @@ function CompanyDetailContent() {
     );
   }
 
+  // Whether this company has ever been checked. An empty tab means something
+  // different before and after: "we haven't looked" versus "we looked and
+  // there was nothing" — and saying the wrong one is misleading.
+  const hasBeenResearched = Boolean(research.data?.latest_run?.completed_at);
+
+  const researchLabel = researching
+    ? "Researching…"
+    : research.data?.latest_run
+      ? "Refresh research"
+      : "Research company";
+
+  // The same working button, reused wherever a tab is empty — nobody should
+  // have to go looking for it.
+  const researchButton = (
+    <Button onClick={runResearch} loading={starting || researching} disabled={!company.data}>
+      <Microscope /> {researchLabel}
+    </Button>
+  );
+
   const counts = research.data?.counts ?? {};
   const tabs = [
     { value: "overview", label: "Overview" },
@@ -250,14 +269,7 @@ function CompanyDetailContent() {
             {research.data ? (
               <ResearchStatusBadge status={research.data.research_status} />
             ) : null}
-            <Button onClick={runResearch} loading={starting || researching} disabled={!company.data}>
-              <Microscope />
-              {researching
-                ? "Researching…"
-                : research.data?.latest_run
-                  ? "Refresh research"
-                  : "Research company"}
-            </Button>
+            {researchButton}
           </>
         }
       />
@@ -366,8 +378,17 @@ function CompanyDetailContent() {
                 ) : (
                   <EmptyState
                     icon={Globe}
-                    title="Nothing read from their website yet"
-                    description="Use “Research company” above to read their website and public pages."
+                    title={
+                      hasBeenResearched
+                        ? "Nothing usable on their website"
+                        : "Their website has not been read yet"
+                    }
+                    description={
+                      hasBeenResearched
+                        ? "We read their site but could not pull anything meaningful from it. Checking again may help if they have since updated it."
+                        : "We can read their website and any public pages that mention them."
+                    }
+                    action={researchButton}
                   />
                 )}
               </CardContent>
@@ -470,8 +491,15 @@ function CompanyDetailContent() {
               ) : (
                 <EvidenceList
                   items={evidence.data ?? []}
-                  emptyTitle="Nothing found yet"
-                  emptyDescription="Use “Research company” above to look through their website and public pages."
+                  emptyTitle={
+                    hasBeenResearched ? "We found nothing to report" : "Not looked yet"
+                  }
+                  emptyDescription={
+                    hasBeenResearched
+                      ? "We read their pages but found nothing specific enough to rely on. That is a real answer, not an error — some companies publish very little."
+                      : "We can look through their website and any public pages that mention them."
+                  }
+                  emptyAction={researchButton}
                 />
               )}
             </CardContent>
@@ -511,6 +539,8 @@ function CompanyDetailContent() {
           <Skeleton className="h-40 w-full" />
         ) : (
           <SignalList
+            emptyAction={researchButton}
+            hasBeenResearched={hasBeenResearched}
             signals={signals.data ?? []}
             onViewEvidence={(signal: Signal) =>
               setDrawer({
@@ -531,8 +561,15 @@ function CompanyDetailContent() {
           <Card>
             <EmptyState
               icon={Layers}
-              title="No potential opportunities yet"
-              description="Opportunities are hypotheses derived from observed signals. Run research first."
+              title={
+                hasBeenResearched ? "No openings to suggest" : "Nothing to suggest yet"
+              }
+              description={
+                hasBeenResearched
+                  ? "Nothing this company is doing publicly points to a fit with UBM right now. Worth checking again in a few weeks."
+                  : "Openings are worked out from what a company appears to be doing, so we need to look first."
+              }
+              action={researchButton}
             />
           </Card>
         ) : (
@@ -570,7 +607,11 @@ function CompanyDetailContent() {
         people.isLoading ? (
           <Skeleton className="h-40 w-full" />
         ) : (
-          <DecisionMakerList people={people.data ?? []} />
+          <DecisionMakerList
+            people={people.data ?? []}
+            emptyAction={researchButton}
+            hasBeenResearched={hasBeenResearched}
+          />
         )
       ) : null}
 
@@ -589,7 +630,8 @@ function CompanyDetailContent() {
             <EmptyState
               icon={Link2}
               title="No pages read yet"
-              description="Pages are collected when you research the company."
+              description="Every page we read is listed here, so you can check anything yourself."
+              action={researchButton}
             />
           ) : (
             <TableWrap>
@@ -654,7 +696,8 @@ function CompanyDetailContent() {
             <EmptyState
               icon={History}
               title="Not checked yet"
-              description="Each time you research this company it is recorded here, so you can see what changed."
+              description="Each check is recorded here, so you can see what changed since last time."
+              action={researchButton}
             />
           ) : (
             <TableWrap>

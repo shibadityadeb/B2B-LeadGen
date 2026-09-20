@@ -6,7 +6,7 @@ import { ProgressBar } from "@/components/domain/progress";
 import { ResearchStatusBadge } from "@/components/domain/research-badges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDuration } from "@/lib/format";
+import { formatDuration, formatRelative } from "@/lib/format";
 import type { ResearchRun } from "@/lib/types";
 
 /**
@@ -78,7 +78,9 @@ export function ResearchProgress({
             </span>
           </p>
           <p className="mt-1 pl-6 text-xs text-subtle">
-            Checked {formatDuration(run.started_at, run.completed_at)} ago in real time
+            {/* formatDuration is how long it took, not how long ago. */}
+            Checked {formatRelative(run.completed_at ?? run.started_at)} · took{" "}
+            {formatDuration(run.started_at, run.completed_at)}
             {run.llm_used ? " · AI helped read the pages" : ""}
           </p>
         </CardContent>

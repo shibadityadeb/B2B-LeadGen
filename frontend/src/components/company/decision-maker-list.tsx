@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink, Mail, User } from "lucide-react";
+import type * as React from "react";
 
 import { ConfidenceBadge, VerificationBadge } from "@/components/domain/research-badges";
 import { Badge } from "@/components/ui/badge";
@@ -9,14 +10,27 @@ import { EmptyState } from "@/components/ui/states";
 import { humanize, truncate } from "@/lib/format";
 import type { DecisionMaker } from "@/lib/types";
 
-export function DecisionMakerList({ people }: { people: DecisionMaker[] }) {
+export function DecisionMakerList({
+  people,
+  emptyAction,
+  hasBeenResearched = false,
+}: {
+  people: DecisionMaker[];
+  emptyAction?: React.ReactNode;
+  hasBeenResearched?: boolean;
+}) {
   if (people.length === 0) {
     return (
       <Card>
         <EmptyState
           icon={User}
-          title="No names published"
-          description="We only record people the company names on its own public pages. We never guess a name, and never make up an email address."
+          title={hasBeenResearched ? "No names published" : "Not looked yet"}
+          description={
+            hasBeenResearched
+              ? "This company does not name anyone on its public pages. We only record people a company names itself — we never guess a name, and never make up an email address."
+              : "Once we have looked, anyone this company names publicly will appear here."
+          }
+          action={emptyAction}
         />
       </Card>
     );

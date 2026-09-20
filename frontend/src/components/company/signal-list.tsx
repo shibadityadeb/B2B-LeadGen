@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
+import type * as React from "react";
 
 import { ConfidenceBadge, FreshnessBadge, ObservationBadge } from "@/components/domain/research-badges";
 import { Button } from "@/components/ui/button";
@@ -13,16 +14,25 @@ import type { Signal } from "@/lib/types";
 export function SignalList({
   signals,
   onViewEvidence,
+  emptyAction,
+  hasBeenResearched = false,
 }: {
   signals: Signal[];
   onViewEvidence: (signal: Signal) => void;
+  emptyAction?: React.ReactNode;
+  hasBeenResearched?: boolean;
 }) {
   if (signals.length === 0) {
     return (
       <Card>
         <EmptyState
-          title="Nothing noticeable yet"
-          description="Once the company has been researched, anything they appear to be doing shows up here."
+          title={hasBeenResearched ? "Nothing much happening" : "Not looked yet"}
+          description={
+            hasBeenResearched
+              ? "We could not see any recent activity worth flagging. Some companies simply publish very little."
+              : "Anything this company appears to be doing will show up here once we have looked."
+          }
+          action={emptyAction}
         />
       </Card>
     );

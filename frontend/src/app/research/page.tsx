@@ -112,7 +112,7 @@ export default function ResearchRunsPage() {
               pageSize={PAGE_SIZE}
               total={data.total}
               onPageChange={setPage}
-              label="research runs"
+              label="checks"
             />
           </>
         )}

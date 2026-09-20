@@ -94,10 +94,13 @@ export function EvidenceList({
   items,
   emptyTitle = "Nothing found yet",
   emptyDescription,
+  emptyAction,
 }: {
   items: Evidence[];
   emptyTitle?: string;
   emptyDescription?: string;
+  /** A working button, so the reader never has to hunt for one elsewhere. */
+  emptyAction?: React.ReactNode;
 }) {
   // Things we can no longer see on the web are kept on record but hidden by
   // default: showing a dozen struck-through items would mislead a reader who
@@ -107,7 +110,9 @@ export function EvidenceList({
   const [showStale, setShowStale] = React.useState(false);
 
   if (items.length === 0) {
-    return <EmptyState title={emptyTitle} description={emptyDescription} />;
+    return (
+      <EmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />
+    );
   }
 
   return (

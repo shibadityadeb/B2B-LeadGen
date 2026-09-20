@@ -100,8 +100,8 @@ export function ResearchBriefView({
     return (
       <EmptyState
         icon={FileText}
-        title="No brief yet"
-        description="A brief is written at the end of each research run."
+        title="No summary yet"
+        description="A summary is written once this company has been researched."
       />
     );
   }
